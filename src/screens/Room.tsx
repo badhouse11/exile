@@ -82,12 +82,49 @@ function TopBar({ onLeave, code, view, status }: { onLeave: () => void; code: st
   );
 }
 
+/* ---------------------------------------------------------------------------------- invite */
+function Invite({ code, compact = false }: { code: string; compact?: boolean }) {
+  const link = `${window.location.origin}${window.location.pathname}?room=${code}`;
+  const [done, setDone] = useState('');
+  const share = async () => {
+    const text = `Join my game of EXILE. Room code ${code}.`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'EXILE', text, url: link });
+        return;
+      }
+    } catch {
+      return; // they closed the share sheet
+    }
+    try {
+      await navigator.clipboard.writeText(link);
+      setDone('Link copied. Paste it into your group chat.');
+    } catch {
+      setDone(`Send them this link: ${link}`);
+    }
+  };
+  return (
+    <div className="codebox panel">
+      {!compact && <p className="label">Room code</p>}
+      <div className="code-big" style={compact ? { fontSize: 44 } : undefined}>
+        {code}
+      </div>
+      <button className="btn primary block" style={{ marginTop: 12 }} onClick={share}>
+        Invite friends
+      </button>
+      {done && (
+        <p className="small" style={{ marginTop: 8, overflowWrap: 'anywhere' }}>
+          {done}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------------------------- lobby */
 function Lobby({ room, view }: { room: RoomApi; view: View }) {
   const me = view.lobby.find((l) => l.id === view.you.playerId);
   const [editing, setEditing] = useState(false);
-  const link = `${window.location.origin}${window.location.pathname}?room=${view.code}`;
-  const [copied, setCopied] = useState(false);
 
   if (view.you.role === 'screen') {
     return (
@@ -105,31 +142,10 @@ function Lobby({ room, view }: { room: RoomApi; view: View }) {
     return <JoinForm room={room} view={view} current={me} onDone={() => setEditing(false)} />;
   }
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
   const ready = view.lobby.length >= RULES.minPlayers;
   return (
     <div className="stack">
-      <div className="codebox panel">
-        <p className="label">Room code</p>
-        <div className="code-big">{view.code}</div>
-        <p className="small muted" style={{ marginTop: 6, overflowWrap: 'anywhere' }}>
-          {link}
-        </p>
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn" onClick={copy}>
-            {copied ? 'Link copied' : 'Copy invite link'}
-          </button>
-        </div>
-      </div>
+      <Invite code={view.code} />
       <Passengers view={view} canKick={view.you.isHost} onKick={(id) => room.act({ a: 'kick', playerId: id })} />
       <button className="btn ghost" onClick={() => setEditing(true)}>
         Change my name or colour
@@ -197,6 +213,7 @@ function JoinForm({ room, view, current, onDone }: { room: RoomApi; view: View; 
       <h1 className="display" style={{ fontSize: 52 }}>
         Who’s fleeing?
       </h1>
+      {!current && <Invite code={view.code} compact />}
       <label className="label" htmlFor="name">
         Your name
       </label>
