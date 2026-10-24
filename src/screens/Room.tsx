@@ -254,7 +254,7 @@ function JoinForm({ room, view, current, onDone }: { room: RoomApi; view: View; 
           setName(e.target.value);
           setErr('');
         }}
-        placeholder="Tim"
+        placeholder="Name"
         autoFocus
         autoComplete="off"
       />
@@ -289,6 +289,16 @@ function JoinForm({ room, view, current, onDone }: { room: RoomApi; view: View; 
 
 /* ---------------------------------------------------------------------------------- in game */
 function GameShell({ room, view }: { room: RoomApi; view: View }) {
+  const g0 = view.game!;
+  const tint = g0.phase !== 'intro' && g0.phase !== 'briefing' && g0.phase !== 'final' ? g0.round.temp : null;
+  // The page takes on the weather: blue when it's freezing, green when mild, orange when scorching.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (tint) root.dataset.temp = tint;
+    else delete root.dataset.temp;
+  }, [tint]);
+  useEffect(() => () => void delete document.documentElement.dataset.temp, []);
+
   const g = view.game!;
   const now = room.serverNow();
   const isPlayer = view.you.role === 'player' && !!view.you.playerId && g.players.some((p) => p.id === view.you.playerId);

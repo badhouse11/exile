@@ -147,8 +147,19 @@ function playGame(n: number, seed: number) {
     const pitcher = r.pitchOrder[0];
     const debunker = Object.keys(r.players).find((id) => id !== pitcher && !g.players.find((p) => p.id === id)!.debunkUsed);
     if (debunker) {
+      send(adj, { t: 'act', action: { a: 'clockStart' } });
+      advance(1000);
       const out = send(idx(debunker), { t: 'act', action: { a: 'debunk' } });
       assert.equal(out.reply, undefined);
+      assert.equal(core.state.clock.runningSince, null, 'a Debunk pauses the clock');
+      assert.ok(r.debunk, 'waiting for the Adjudicator');
+      assert.equal(send(idx(debunker), { t: 'act', action: { a: 'debunkAccept' } }).reply?.t, 'error', 'only the Adjudicator decides');
+      // Overruled: the card goes back to its owner.
+      send(adj, { t: 'act', action: { a: 'debunkReject' } });
+      assert.equal(g.players.find((p) => p.id === debunker)!.debunkUsed, false);
+      // Called again and accepted: the stamp lands and the card is spent.
+      send(idx(debunker), { t: 'act', action: { a: 'debunk' } });
+      send(adj, { t: 'act', action: { a: 'debunkAccept' } });
       assert.equal(core.state.event?.tone, 'debunk');
       assert.equal(send(idx(debunker), { t: 'act', action: { a: 'debunk' } }).reply?.t, 'error', 'one debunk per game');
     }

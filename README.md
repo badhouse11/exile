@@ -24,11 +24,11 @@ Netlify is optional. To host the site there instead, import the repo (settings c
 1. Go to **exilethegame.com**. One player taps **Start a game**; everyone else scans the QR code on their phone, taps **Invite friends**, or types the four-letter code. Everyone picks a name and a colour.
 2. The host taps **Take off**. The game shuffles an Adjudicator rota: everyone takes one turn as Adjudicator, running that round and judging who survives longest, without packing a bag themselves.
 3. **The intro.** A dark, text-led opening plays on every phone at once: the knock at the door, the suitcase of gold, the rules in story form. The host taps **Play** and sets the pace, or taps **Skip intro**. The script lives in `src/game/intro.ts`.
-4. **Briefing.** The Adjudicator takes off. The temperature gauge shows FREEZING, MILD or SCORCHING. The place stays secret.
+4. **Briefing.** The Adjudicator takes off. The temperature gauge shows FREEZING, MILD or SCORCHING, and the whole page takes on the weather: blue, green or orange. The place stays secret.
 5. **The deal.** Items come up one at a time from a shuffled deck, in a random order: partners, tools, food, animals and fun all mixed together. Players bid gold bars from their phones or tap **Pass**; when everyone else has passed, the top bid wins straight away. Fresh 20 gold bars a round (21 for the last Secret Survivalist). Players always keep one bar back for each empty slot.
 6. **Touchdown.** Once every bag is full, the place is stamped across every screen.
 7. **The data.** The Adjudicator reveals each player's numbers one at a time, lowest first: Health, Morale and Supplies out of 30, then the days the data gives them. Then: *However… the data may suggest this, but it comes down to the pitches.*
-8. **The pitches.** Two minutes each, on a clock the Adjudicator runs. Everyone has one **Debunk** card per game, played from their phone during someone else's pitch. Pure theatre: a big red stamp on every screen.
+8. **The pitches.** Two minutes each, on a clock the Adjudicator runs. Everyone has one **Debunk** card per game, played from their phone during someone else's pitch. Calling it pauses the clock; the Adjudicator either accepts it (a big red DEBUNKED stamp on every screen, card spent) or overrules it (card handed back).
 9. **The verdict.** The Adjudicator starts from the data and moves each player's days up or down based on their pitch. The screen goes dark and the days are revealed one by one, shortest first: *Surviving 39 days is… Dev.* The final two get the drumroll, and the longest is the **Secret Survivalist**.
 10. After everyone has adjudicated, whoever won the most rounds is crowned **Last One Standing**.
 

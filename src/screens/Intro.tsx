@@ -151,15 +151,21 @@ export default function Intro({ view, room }: { view: View; room: Room }) {
           <div className="intro-body" key={step}>
             <svg className="intro-glyph" viewBox="0 0 64 64" aria-hidden="true" dangerouslySetInnerHTML={{ __html: GLYPHS[beat.glyph] }} />
             <div className="intro-lines" aria-live="polite">
-              {beat.lines.map((l, i) =>
-                shown[i] > 0 || i === 0 ? (
+              {/* Every line is laid out in full from the start; the untyped part is invisible, so nothing moves as it types. */}
+              {beat.lines.map((l, i) => {
+                const n = shown[i] ?? 0;
+                const typingHere = !done && n < l.text.length && (i === 0 || (shown[i - 1] ?? 0) >= beat.lines[i - 1].text.length);
+                return (
                   <p key={i} className={`intro-line ${l.small ? 'small' : ''}`}>
-                    {l.text.slice(0, shown[i])}
-                    {!done && shown[i] < l.text.length && (i === 0 || shown[i - 1] >= beat.lines[i - 1].text.length) && <span className="intro-caret" />}
+                    <span>{l.text.slice(0, n)}</span>
+                    {typingHere && <span className="intro-caret" />}
+                    <span className="intro-ghost" aria-hidden="true">
+                      {l.text.slice(n)}
+                    </span>
                   </p>
-                ) : null,
-              )}
-              {done && beat.stamp && <div className="intro-stamp">{beat.stamp}</div>}
+                );
+              })}
+              {beat.stamp && <div className={`intro-stamp ${done ? 'on' : ''}`}>{beat.stamp}</div>}
             </div>
           </div>
           <div className="intro-foot">

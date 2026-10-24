@@ -24,6 +24,7 @@ import {
 } from '../game/rules';
 import { INTRO } from '../game/intro';
 import type {
+  PendingDebunk,
   Action,
   Auction,
   ClientMsg,
@@ -68,6 +69,7 @@ export interface Round {
   winnerId: string | null;
   nextDealAt: number | null;
   legendCats?: Category[]; // categories that have already had their legend this round
+  debunk?: PendingDebunk | null;
 }
 
 export interface Game {
@@ -477,16 +479,11 @@ export class RoomCore {
         break;
       }
 
-      case 'clockPause': {
+      case 'clockPause':
         this.requireRunner(m);
         this.requirePhase('pitch');
-        const c = this.state.clock;
-        if (c.runningSince !== null) {
-          c.remainingMs = Math.max(0, c.remainingMs - (this.now - c.runningSince));
-          c.runningSince = null;
-        }
+        this.pauseClock();
         break;
-      }
 
       case 'clockReset':
         this.requireRunner(m);
@@ -497,6 +494,7 @@ export class RoomCore {
       case 'nextPitch':
         this.requireRunner(m);
         this.requirePhase('pitch');
+        r.debunk = null;
         this.state.clock = { remainingMs: PITCH_MS, runningSince: null };
         if (r.pitchIndex + 1 >= r.pitchOrder.length) {
           g.phase = 'verdict';
@@ -515,8 +513,33 @@ export class RoomCore {
         if (me.debunkUsed) throw new Denied('You’ve used your Debunk card this game.');
         const target = r.pitchOrder[r.pitchIndex];
         if (target === m.playerId) throw new Denied('You can’t debunk your own pitch.');
-        me.debunkUsed = true;
-        this.say(`${me.name} debunks ${this.name(target)}!`, 'debunk', { by: me.id, target });
+        if (r.debunk) throw new Denied('There’s already a Debunk on the table.');
+        // The clock stops while the Adjudicator makes the call.
+        this.pauseClock();
+        r.debunk = { by: me.id, target, at: this.now };
+        this.say(`${me.name} calls Debunk! Over to the Adjudicator.`);
+        break;
+      }
+
+      case 'debunkAccept': {
+        this.requireRunner(m);
+        this.requirePhase('pitch');
+        const d = r.debunk;
+        if (!d) throw new Denied('Nobody has called Debunk.');
+        const by = g.players.find((p) => p.id === d.by);
+        if (by) by.debunkUsed = true;
+        r.debunk = null;
+        this.say(`${this.name(d.by)} debunks ${this.name(d.target)}!`, 'debunk', { by: d.by, target: d.target });
+        break;
+      }
+
+      case 'debunkReject': {
+        this.requireRunner(m);
+        this.requirePhase('pitch');
+        const d = r.debunk;
+        if (!d) throw new Denied('Nobody has called Debunk.');
+        r.debunk = null;
+        this.say(`Overruled. ${this.name(d.by)} keeps their Debunk card.`);
         break;
       }
 
@@ -564,6 +587,14 @@ export class RoomCore {
 
       default:
         throw new Denied('Unknown move.');
+    }
+  }
+
+  private pauseClock() {
+    const c = this.state.clock;
+    if (c.runningSince !== null) {
+      c.remainingMs = Math.max(0, c.remainingMs - (this.now - c.runningSince));
+      c.runningSince = null;
     }
   }
 
@@ -771,6 +802,7 @@ export class RoomCore {
           revealAt: r.revealAt,
           winnerId: showRanking ? r.winnerId : null,
           nextDealAt: r.nextDealAt,
+          debunk: r.debunk ?? null,
         },
       };
     }

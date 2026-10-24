@@ -1365,10 +1365,10 @@ input.code {
 
 .intro-caret {
   display: inline-block;
-  width: 0.5ch;
+  width: 0;
+  box-shadow: 0 0 0 1.5px var(--miel);
   height: 0.9em;
   background: var(--miel);
-  margin-left: 2px;
   transform: translateY(0.12em);
   animation: caret 1s steps(1) infinite;
 }
@@ -1379,7 +1379,12 @@ input.code {
   }
 }
 
+.intro-ghost {
+  visibility: hidden;
+}
+
 .intro-stamp {
+  visibility: hidden;
   align-self: flex-start;
   font-family: var(--display);
   font-size: clamp(40px, 12vw, 64px);
@@ -1390,6 +1395,10 @@ input.code {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   transform: rotate(-6deg);
+}
+
+.intro-stamp.on {
+  visibility: visible;
   animation: stamp-in 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
 }
 
@@ -1448,4 +1457,31 @@ input.code {
   80% {
     transform: translate(3px, 0);
   }
+}
+
+/* ---------------------------------------------------------------- the weather, in the background */
+html,
+body {
+  transition: background-color 1.6s ease;
+}
+
+html[data-temp='FREEZING'],
+html[data-temp='FREEZING'] body {
+  background-color: #c4dbe3;
+}
+
+html[data-temp='MILD'],
+html[data-temp='MILD'] body {
+  background-color: #d4dcae;
+}
+
+html[data-temp='SCORCHING'],
+html[data-temp='SCORCHING'] body {
+  background-color: #f0bb7c;
+}
+
+/* Plain buttons on a dark panel keep dark ink on paper. */
+.panel.dark .btn:not(.danger):not(.primary):not(.dark) {
+  color: var(--ink);
+  background: var(--paper);
 }

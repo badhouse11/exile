@@ -62,6 +62,13 @@ export interface RoundView {
   revealAt: number;
   winnerId: string | null;
   nextDealAt: number | null;
+  debunk: PendingDebunk | null; // a Debunk card waiting for the Adjudicator's call
+}
+
+export interface PendingDebunk {
+  by: string;
+  target: string;
+  at: number;
 }
 
 /** The opening story. The host starts it and sets the pace for every phone. */
@@ -123,6 +130,8 @@ export type Action =
   | { a: 'clockReset' }
   | { a: 'nextPitch' }
   | { a: 'debunk' }
+  | { a: 'debunkAccept' }
+  | { a: 'debunkReject' }
   | { a: 'verdict'; days: Record<string, number> }
   | { a: 'nextRound' }
   | { a: 'autoFill'; playerId: string }

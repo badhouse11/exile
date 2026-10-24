@@ -407,7 +407,8 @@ function Pitch(p: Ctx) {
   const mm = Math.floor(Math.ceil(left / 1000) / 60);
   const ss = String(Math.ceil(left / 1000) % 60).padStart(2, '0');
   const mine = g.players.find((x) => x.id === me);
-  const canDebunk = !!mine && !isAdj && pitcher !== me && !mine.debunkUsed && view.you.role === 'player';
+  const pending = r.debunk;
+  const canDebunk = !!mine && !isAdj && pitcher !== me && !mine.debunkUsed && view.you.role === 'player' && !pending;
   const [arming, setArming] = useState(false);
   const next = r.pitchOrder[r.pitchIndex + 1];
 
@@ -423,13 +424,36 @@ function Pitch(p: Ctx) {
         {pitcher === me
           ? 'You’ve got two minutes. Tell the Adjudicator why your bag keeps you alive longer than the data says.'
           : isAdj
-            ? 'Start the clock when they begin. When they’re done, move on to the next player.'
+            ? 'Start the clock when they begin. If someone calls Debunk, the clock stops and you decide. When they’re done, move on to the next player.'
             : 'Listen. If you think it’s nonsense, play your Debunk card. You only get one per game.'}
       </How>
       <div className={`clock ${left < 15000 ? 'low' : ''}`}>
         {mm}:{ss}
       </div>
-      {canRun && (
+      {pending && (
+        <div className="panel dark stack rise" style={{ gap: 10, textAlign: 'center' }}>
+          <p className="label">Debunk called · clock paused</p>
+          <p className="display" style={{ fontSize: 'clamp(26px, 7vw, 36px)' }}>
+            {pending.by === me ? 'You' : nameOf(g.players, pending.by)} {pending.by === me ? 'call' : 'calls'} nonsense on {pending.target === me ? 'you' : nameOf(g.players, pending.target)}.
+          </p>
+          {canRun ? (
+            <>
+              <p className="small">Do you agree? Accepting stamps it on every screen and uses up their Debunk card. Overruling hands the card back.</p>
+              <div className="row">
+                <button className="btn danger big" onClick={() => act({ a: 'debunkAccept' })}>
+                  Accept: debunked
+                </button>
+                <button className="btn" onClick={() => act({ a: 'debunkReject' })}>
+                  Overrule
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="small">Over to the Adjudicator…</p>
+          )}
+        </div>
+      )}
+      {canRun && !pending && (
         <div className="row">
           {c.runningSince === null ? (
             <button className="btn primary" onClick={() => act({ a: 'clockStart' })}>
