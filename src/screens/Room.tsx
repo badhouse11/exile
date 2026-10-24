@@ -320,7 +320,7 @@ function GameShell({ room, view }: { room: RoomApi; view: View }) {
   }
 
   const r = g.round;
-  const showGauge = g.phase !== 'briefing' && g.phase !== 'final';
+  const showGauge = g.phase !== 'intro' && g.phase !== 'briefing' && g.phase !== 'final';
   const ev = view.event;
   const debunk = ev?.tone === 'debunk' && now - ev.at < TIMING.debunkMs ? ev : null;
 

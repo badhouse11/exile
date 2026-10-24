@@ -9,6 +9,7 @@ import { RoomCore, newRoom } from '../net/room-core';
 import type { Meta } from '../net/room-core';
 import type { ClientMsg } from '../net/protocol';
 import { RULES, maxBid, survivalDays } from './rules';
+import { INTRO } from './intro';
 
 function seeded(seed: number) {
   return () => {
@@ -19,6 +20,7 @@ function seeded(seed: number) {
 
 function playGame(n: number, seed: number) {
   const rng = seeded(seed);
+  void seed;
   let now = 1_000_000;
   const core = new RoomCore(newRoom('ABCD', now));
   core.rng = rng;
@@ -50,6 +52,14 @@ function playGame(n: number, seed: number) {
   assert.equal(send(0, { t: 'start' }).reply, undefined);
   const g = core.state.game!;
   assert.equal(g.rota.length, n);
+  // The intro: only the host plays, steps through or skips it.
+  assert.equal(g.phase, 'intro');
+  assert.equal(send(1, { t: 'act', action: { a: 'introPlay' } }).reply?.t, 'error', 'only the host starts the intro');
+  send(0, { t: 'act', action: { a: 'introPlay' } });
+  if (seed % 2) {
+    for (let k = 0; k < INTRO.length; k++) send(0, { t: 'act', action: { a: 'introNext' } });
+  } else send(0, { t: 'act', action: { a: 'introSkip' } });
+  assert.equal(g.phase, 'briefing');
 
   const idx = (playerId: string) => metas.findIndex((m) => m.playerId === playerId);
   const advance = (ms: number) => {

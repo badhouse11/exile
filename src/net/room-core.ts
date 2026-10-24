@@ -22,6 +22,7 @@ import {
   slotsLeft,
   survivalDays,
 } from '../game/rules';
+import { INTRO } from '../game/intro';
 import type {
   Action,
   Auction,
@@ -72,6 +73,7 @@ export interface Round {
 
 export interface Game {
   phase: Phase;
+  intro?: { started: boolean; step: number };
   players: Player[];
   rota: string[];
   roundIndex: number;
@@ -339,7 +341,8 @@ export class RoomCore {
     this.state.lastSeen = seen;
     const rota = shuffle(players.map((p) => p.id), this.rng);
     this.state.game = {
-      phase: 'briefing',
+      phase: 'intro',
+      intro: { started: false, step: 0 },
       players,
       rota,
       roundIndex: 0,
@@ -350,7 +353,7 @@ export class RoomCore {
     };
     this.state.auction = null;
     this.state.clock = { remainingMs: PITCH_MS, runningSince: null };
-    this.say(`${this.name(rota[0])} is the first Adjudicator.`);
+    this.say('Everyone’s on board.');
     return { changed: true };
   }
 
@@ -377,6 +380,30 @@ export class RoomCore {
     const g = this.g;
     const r = g.round;
     switch (action.a) {
+      case 'introPlay':
+        this.requireHost(m);
+        this.requirePhase('intro');
+        g.intro = { started: true, step: 0 };
+        break;
+
+      case 'introNext':
+        this.requireHost(m);
+        this.requirePhase('intro');
+        g.intro = g.intro ?? { started: true, step: 0 };
+        g.intro.started = true;
+        if (g.intro.step + 1 >= INTRO.length) {
+          g.phase = 'briefing';
+          this.say(`${this.name(r.adjudicatorId)} is the first Adjudicator.`);
+        } else g.intro.step += 1;
+        break;
+
+      case 'introSkip':
+        this.requireHost(m);
+        this.requirePhase('intro');
+        g.phase = 'briefing';
+        this.say(`${this.name(r.adjudicatorId)} is the first Adjudicator.`);
+        break;
+
       case 'takeOff': {
         this.requireRunner(m);
         this.requirePhase('briefing');
@@ -780,6 +807,7 @@ export class RoomCore {
       const pick = <T,>(src: Record<string, T> | null) => (src ? Object.fromEntries(shown.map((id) => [id, src[id]])) : null);
       game = {
         phase: g.phase,
+        intro: g.intro ?? { started: false, step: 0 },
         players: g.players,
         rota: g.rota,
         results: g.results,

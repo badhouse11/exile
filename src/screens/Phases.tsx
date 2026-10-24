@@ -11,6 +11,7 @@ import type { Category } from '../data/cards';
 import { BREAKDOWN_MAX, MAX_VERDICT_DAYS, RULES, TIMING, maxBid, revealTimeline } from '../game/rules';
 import type { GameView, Player, View } from '../net/protocol';
 import type { Room } from '../net/useRoom';
+import Intro from './Intro';
 
 interface Ctx {
   view: View;
@@ -31,6 +32,8 @@ function useCtx({ view, room, now }: Ctx) {
 
 export default function Phase(props: Ctx) {
   switch (props.view.game!.phase) {
+    case 'intro':
+      return <Intro view={props.view} room={props.room} />;
     case 'briefing':
       return <Briefing {...props} />;
     case 'deal':

@@ -7,7 +7,7 @@ import type { Breakdown } from '../game/rules';
 
 export type Role = 'screen' | 'player' | 'guest';
 
-export type Phase = 'briefing' | 'deal' | 'landing' | 'odds' | 'pitch' | 'verdict' | 'reveal' | 'roundEnd' | 'final';
+export type Phase = 'intro' | 'briefing' | 'deal' | 'landing' | 'odds' | 'pitch' | 'verdict' | 'reveal' | 'roundEnd' | 'final';
 
 export interface Player {
   id: string;
@@ -71,8 +71,15 @@ export interface RoundView {
   nextDealAt: number | null;
 }
 
+/** The opening story. The host starts it and sets the pace for every phone. */
+export interface Intro {
+  started: boolean;
+  step: number;
+}
+
 export interface GameView {
   phase: Phase;
+  intro: Intro;
   players: Player[];
   rota: string[]; // adjudicator order, one round each
   round: RoundView;
@@ -110,6 +117,9 @@ export interface View {
 }
 
 export type Action =
+  | { a: 'introPlay' }
+  | { a: 'introNext' }
+  | { a: 'introSkip' }
   | { a: 'takeOff' }
   | { a: 'bid'; amount: number }
   | { a: 'pass' }

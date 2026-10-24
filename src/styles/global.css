@@ -1244,3 +1244,208 @@ input.code {
 .slot.filled.legend .label {
   color: var(--miel);
 }
+
+/* ---------------------------------------------------------------- the intro */
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #24221a;
+  color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: max(18px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(22px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  cursor: pointer;
+  user-select: none;
+}
+
+.intro > * {
+  width: 100%;
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.intro-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.intro-mark {
+  font-family: var(--display);
+  letter-spacing: 0.08em;
+  font-size: 18px;
+  color: #a99e78;
+}
+
+.intro-skip {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #a99e78;
+  background: none;
+  border: 1.5px solid #4a4632;
+  border-radius: 999px;
+  padding: 7px 14px;
+}
+
+.intro-start {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.intro-start h1 {
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: clamp(64px, 22vw, 110px);
+  margin: 0;
+  letter-spacing: 0.06em;
+}
+
+.intro-start p {
+  color: #a99e78;
+  font-size: 15px;
+}
+
+.intro-play {
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.06em;
+  color: #24221a;
+  background: var(--miel);
+  border: none;
+  border-radius: 999px;
+  padding: 14px 38px;
+}
+
+.intro-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  padding: 24px 0;
+}
+
+.intro-glyph {
+  width: 54px;
+  height: 54px;
+  color: var(--miel);
+  animation: fade-in 0.6s ease both;
+}
+
+.intro-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 9em;
+}
+
+.intro-line {
+  font-family: var(--display);
+  font-size: clamp(26px, 7.2vw, 36px);
+  line-height: 1.22;
+  text-wrap: pretty;
+}
+
+.intro-line.small {
+  font-family: var(--body);
+  font-size: clamp(16px, 4.4vw, 19px);
+  line-height: 1.5;
+  color: #d8c898;
+}
+
+.intro-caret {
+  display: inline-block;
+  width: 0.5ch;
+  height: 0.9em;
+  background: var(--miel);
+  margin-left: 2px;
+  transform: translateY(0.12em);
+  animation: caret 1s steps(1) infinite;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.intro-stamp {
+  align-self: flex-start;
+  font-family: var(--display);
+  font-size: clamp(40px, 12vw, 64px);
+  color: #c2502c;
+  border: 4px solid #c2502c;
+  border-radius: 8px;
+  padding: 4px 16px 0;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+  animation: stamp-in 0.35s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+
+.intro-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.intro-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.intro-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4a4632;
+  display: block;
+}
+
+.intro-dots i.on {
+  background: var(--miel);
+}
+
+.intro-hint {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #a99e78;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+.intro-hint.on {
+  opacity: 1;
+}
+
+.intro.shake {
+  animation: shudder 0.32s ease;
+}
+
+@keyframes shudder {
+  20% {
+    transform: translate(-5px, 1px);
+  }
+  40% {
+    transform: translate(5px, -1px);
+  }
+  60% {
+    transform: translate(-3px, 0);
+  }
+  80% {
+    transform: translate(3px, 0);
+  }
+}
