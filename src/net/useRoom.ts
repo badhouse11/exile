@@ -5,7 +5,10 @@ import type { Action, ClientMsg, ServerMsg, View } from './protocol';
 /** Forgiving about how the address was pasted: adds https:// if missing, drops any trailing path or slash. */
 function normalise(raw: string): string {
   let v = raw.trim().replace(/^["']|["']$/g, '');
+  // Served by the Cloudflare Worker itself: the rooms live at the same address.
+  if (!v && typeof window !== 'undefined' && window.location.hostname.endsWith('.workers.dev')) return window.location.origin;
   if (!v) return '';
+  if (v === 'same-origin') return typeof window === 'undefined' ? '' : window.location.origin;
   if (!/^(https?|wss?):\/\//i.test(v)) v = `https://${v}`;
   try {
     const u = new URL(v);

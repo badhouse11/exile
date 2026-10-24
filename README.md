@@ -8,28 +8,16 @@ Built on the same bones as GREENLIT, but it is a completely separate project: it
 
 ## Setting it live
 
-### 1. The website (Netlify)
+Everything runs on one free Cloudflare Worker: the website and the game rooms share one address.
 
-1. In Netlify: **Add new site → Import an existing project → GitHub**, and pick `badhouse11/exile`.
-2. Netlify reads the build settings from `netlify.toml` (`npm run build`, publishes `dist`). Press deploy.
+1. In the Cloudflare dashboard: **Workers & Pages → Create → Import a repository**, pick `badhouse11/exile`.
+2. Name it **`exile-rooms`**. Build command `npm run build`, deploy command `npx wrangler deploy`.
+3. In the Worker's **Settings → Domains & Routes**, enable **workers.dev**.
+4. Open that address (`https://exile-rooms.<your-subdomain>.workers.dev`). That's the game. Share it with the players.
 
-The site works straight away, but it shows a "room server isn't connected yet" note until step 3 is done.
+Every push to `main` redeploys it automatically.
 
-### 2. The room server (Cloudflare)
-
-The phones talk to each other through a tiny Cloudflare Worker: one room per four-letter code.
-
-1. In the Cloudflare dashboard: **Workers & Pages → Create → Import a repository**, and pick `badhouse11/exile`.
-2. Name the Worker **`exile-rooms`**. Deploy command: `npx wrangler deploy`. Everything else comes from `wrangler.toml`.
-3. When it's deployed, copy its address. It looks like `https://exile-rooms.yourname.workers.dev`. Visiting it should say "EXILE rooms are open."
-
-This is a new Worker. GREENLIT's `greenlit-rooms` Worker is left alone.
-
-### 3. Connect them
-
-1. In Netlify: **Site configuration → Environment variables → Add a variable**.
-2. Key `VITE_ROOM_SERVER`, value the Worker address from step 2.
-3. **Deploys → Trigger deploy**. Done.
+Netlify is optional. To host the site there instead, import the repo (settings come from `netlify.toml`) and set the environment variable `VITE_ROOM_SERVER` to the Worker address above.
 
 ## How a game runs
 

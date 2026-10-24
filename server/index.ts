@@ -10,6 +10,7 @@ import { isRoomCode } from '../src/net/protocol';
 
 interface Env {
   ROOMS: DurableObjectNamespace;
+  ASSETS?: { fetch(request: Request): Promise<Response> };
 }
 
 export class Room {
@@ -98,6 +99,8 @@ export default {
       if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected a WebSocket', { status: 426, headers: CORS });
       return env.ROOMS.get(env.ROOMS.idFromName(match[1])).fetch(request);
     }
+    // Everything else is the website, served from the same address.
+    if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response('EXILE rooms are open.', { headers: { ...CORS, 'content-type': 'text/plain' } });
   },
 };
