@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dot, Gauge, nameOf } from '../components/Bits';
 import { PlaneGlyph } from '../components/Icons';
+import { qrSvgPath } from '../lib/qr';
 import { PALETTE, PALETTE_KEYS, RULES, TIMING } from '../game/rules';
 import type { View } from '../net/protocol';
 import { useRoom, useTicker } from '../net/useRoom';
@@ -85,7 +86,9 @@ function TopBar({ onLeave, code, view, status }: { onLeave: () => void; code: st
 /* ---------------------------------------------------------------------------------- invite */
 function Invite({ code, compact = false }: { code: string; compact?: boolean }) {
   const link = `${window.location.origin}${window.location.pathname}?room=${code}`;
+  const host = window.location.host.replace(/^www\./, '');
   const [done, setDone] = useState('');
+  const qr = qrSvgPath(link);
   const share = async () => {
     const text = `Join my game of EXILE. Room code ${code}.`;
     try {
@@ -104,10 +107,20 @@ function Invite({ code, compact = false }: { code: string; compact?: boolean }) 
     }
   };
   return (
-    <div className="codebox panel">
-      {!compact && <p className="label">Room code</p>}
-      <div className="code-big" style={compact ? { fontSize: 44 } : undefined}>
-        {code}
+    <div className="codebox panel invite">
+      <div className="invite-row">
+        <svg className="qr" viewBox={`0 0 ${qr.size} ${qr.size}`} role="img" aria-label="QR code to join this game" shapeRendering="crispEdges">
+          <rect width={qr.size} height={qr.size} fill="#F4E0A8" />
+          <path d={qr.path} fill="#3E3B22" />
+        </svg>
+        <div className="invite-text">
+          <p className="label">Scan to join, or go to</p>
+          <p style={{ fontWeight: 700, overflowWrap: 'anywhere' }}>{host}</p>
+          <p className="label" style={{ marginTop: 6 }}>and enter</p>
+          <div className="code-big" style={{ fontSize: compact ? 38 : 46 }}>
+            {code}
+          </div>
+        </div>
       </div>
       <button className="btn primary block" style={{ marginTop: 12 }} onClick={share}>
         Invite friends

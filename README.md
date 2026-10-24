@@ -21,14 +21,14 @@ Netlify is optional. To host the site there instead, import the repo (settings c
 
 ## How a game runs
 
-1. One player taps **Start a game** and taps **Invite friends** to share the link. Everyone joins, picks a name and a colour.
+1. Go to **exilethegame.com**. One player taps **Start a game**; everyone else scans the QR code on their phone, taps **Invite friends**, or types the four-letter code. Everyone picks a name and a colour.
 2. The host taps **Take off**. The game shuffles an Adjudicator rota: everyone judges exactly one round.
 3. **Briefing.** The Adjudicator takes off. The temperature gauge shows FREEZING, MILD or SCORCHING. The place stays secret.
-4. **The deal.** Items come up one at a time in random order. Players bid gold bars from their phones or tap **Pass**; when everyone else has passed, the top bid wins straight away. Fresh 15 gold bars a round (16 for the last Secret Survivalist). A filled slot is locked, and players always keep one bar back for each empty slot.
+4. **The deal.** Items come up one category at a time: Partner, Tool, Food, Animal, Fun. Players bid gold bars from their phones or tap **Pass**; when everyone else has passed, the top bid wins straight away. The last player still needing a category gets **last pick**: three to choose from, for one gold bar. Fresh 20 gold bars a round (21 for the last Secret Survivalist). Players always keep one bar back for each empty slot.
 5. **Touchdown.** Once every bag is full, the place is stamped across every screen.
 6. **The data.** The Adjudicator reveals each player's numbers one at a time, lowest first: Health, Morale and Supplies out of 30, then the days the data gives them. Then: *However… the data may suggest this, but it comes down to the pitches.*
 7. **The pitches.** Two minutes each, on a clock the Adjudicator runs. Everyone has one **Debunk** card per game, played from their phone during someone else's pitch. Pure theatre: a big red stamp on every screen.
-8. **The verdict.** The Adjudicator starts from the data and moves each player's days up or down based on their pitch. The days are revealed one by one, shortest first: *Surviving 39 days is… Dev.* The longest is the **Secret Survivalist**.
+8. **The verdict.** The Adjudicator starts from the data and moves each player's days up or down based on their pitch. The screen goes dark and the days are revealed one by one, shortest first: *Surviving 39 days is… Dev.* The final two get the drumroll, and the longest is the **Secret Survivalist**.
 9. After everyone has adjudicated, whoever won the most rounds is crowned **Last One Standing**.
 
 ## Editing the cards

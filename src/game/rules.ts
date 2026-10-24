@@ -8,9 +8,10 @@ import type { Card, Category, Location } from '../data/cards';
 export const RULES = {
   minPlayers: 3,
   maxPlayers: 8,
-  goldPerRound: 15, // a fresh stack every round; leftovers are lost
+  goldPerRound: 20, // a fresh stack every round; leftovers are lost
   winnerBonusGold: 1, // the last Secret Survivalist starts the next round with one extra bar
   minBid: 1,
+  lastPickCost: 1, // the last player still needing a category picks from three leftovers for this
   pitchSeconds: 120,
 };
 
@@ -22,10 +23,7 @@ export const TIMING = {
   bidMs: 7000, // each new bid resets the clock to at least this
   settledMs: 2200, // nobody else can top it: sold quickly
   passedMs: 700, // everyone else passed: sold (or binned) almost at once
-  revealLeadMs: 1200, // pause before the first verdict card
-  revealStepMs: 4200, // each player's verdict: the days, a beat, then the name
-  revealNameMs: 1600, // within a step: when the name lands after the days
-  revealTailMs: 3000, // after the Secret Survivalist is crowned
+  lastPickMs: 30000, // time to choose a last pick before one is chosen for you
   debunkMs: 4200, // the DEBUNKED stamp stays on screen this long
   hostAwayMs: 20000,
 };
@@ -123,5 +121,34 @@ export function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
   return a;
 }
 
-/** The verdict reveal: one player at a time, shortest survival first. */
-export const revealDurationMs = (n: number) => TIMING.revealLeadMs + n * TIMING.revealStepMs + TIMING.revealTailMs;
+export interface RevealBeat {
+  start: number; // ms after the reveal begins
+  rollMs: number; // the days roll up for this long
+  nameAt: number; // the name lands here
+  kind: 'quick' | 'runner' | 'winner';
+}
+
+/**
+ * The verdict reveal, shortest survival first. The early ones are quick; the
+ * final two get the drumroll: a "two left standing" beat, then the runner-up,
+ * then the Secret Survivalist.
+ */
+export function revealTimeline(n: number): { beats: RevealBeat[]; finalTwoAt: number; total: number } {
+  const beats: RevealBeat[] = [];
+  let t = 1500;
+  for (let i = 0; i < n - 2; i++) {
+    beats.push({ start: t, rollMs: 1200, nameAt: t + 1800, kind: 'quick' });
+    t += 4000;
+  }
+  const finalTwoAt = t;
+  t += 4000;
+  if (n >= 2) {
+    beats.push({ start: t, rollMs: 2400, nameAt: t + 4400, kind: 'runner' });
+    t += 7000;
+  }
+  beats.push({ start: t, rollMs: 3200, nameAt: t + 6000, kind: 'winner' });
+  t += 6000 + 5000;
+  return { beats, finalTwoAt, total: t };
+}
+
+export const revealDurationMs = (n: number) => revealTimeline(n).total;

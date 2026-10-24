@@ -6,8 +6,9 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { CardFace, Dot, Kit, Ticks, nameOf, tempColour } from '../components/Bits';
 import { GoldGlyph, PlaneGlyph, Sun, ThermoGlyph } from '../components/Icons';
-import { CATEGORIES, cardById } from '../data/cards';
-import { BREAKDOWN_MAX, MAX_VERDICT_DAYS, RULES, TIMING, maxBid } from '../game/rules';
+import { CATEGORIES, CATEGORY_LABELS, cardById } from '../data/cards';
+import type { Category } from '../data/cards';
+import { BREAKDOWN_MAX, MAX_VERDICT_DAYS, RULES, TIMING, maxBid, revealTimeline } from '../game/rules';
 import type { GameView, Player, View } from '../net/protocol';
 import type { Room } from '../net/useRoom';
 
@@ -136,12 +137,16 @@ function Deal(p: Ctx) {
   return (
     <div className="stack">
       {rp ? (
-        <How>Bid gold bars on what you want, or tap Pass. You need one of each. Once a slot’s filled, it’s locked.</How>
+        <How>Items come one category at a time. Bid gold bars on what you want, or tap Pass. Once you’ve got one, you sit that category out.</How>
       ) : isAdj ? (
         <How>You’re judging this round. Watch what everyone packs. You’ll hear why it matters soon.</How>
       ) : null}
 
-      {a ? (
+      <Progress current={a ? cardById(a.cardId).category : view.lastPick ? cardById(view.lastPick.options[0]).category : null} />
+
+      {view.lastPick ? (
+        <LastPickPanel ctx={p} />
+      ) : a ? (
         <Lot ctx={p} />
       ) : (
         <div className="card-back">
@@ -176,6 +181,54 @@ function Deal(p: Ctx) {
 
       <Players view={view} showGold />
     </div>
+  );
+}
+
+/** Where the deal has got to: the five categories, in order. */
+function Progress({ current }: { current: Category | null }) {
+  const at = current ? CATEGORIES.indexOf(current) : -1;
+  return (
+    <div className="progress" aria-label={current ? `Now dealing: ${CATEGORY_LABELS[current]}` : 'Dealing'}>
+      {CATEGORIES.map((c, i) => (
+        <span key={c} className={`step ${i === at ? `now cat-${c}` : i < at ? 'done' : ''}`}>
+          {c === 'ENJOYMENT' ? 'Fun' : c === 'TOOL' ? 'Tool' : CATEGORY_LABELS[c]}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function LastPickPanel({ ctx }: { ctx: Ctx }) {
+  const { g, me, act, now, view } = useCtx(ctx);
+  const lp = view.lastPick!;
+  const cat = cardById(lp.options[0]).category;
+  const mine = lp.playerId === me;
+  const left = Math.max(0, lp.endsAt - now);
+  const what = cat === 'ENJOYMENT' ? 'something for fun' : cat === 'TOOL' ? 'a survival tool' : `${cat === 'ANIMAL' ? 'an' : 'a'} ${CATEGORY_LABELS[cat].toLowerCase()}`;
+  return (
+    <section className="stack" style={{ gap: 12 }}>
+      <div className="panel dark" style={{ textAlign: 'center' }}>
+        <p className="label">Last pick</p>
+        <p className="display" style={{ fontSize: 34, marginTop: 4 }}>
+          {mine ? 'You’re the last one without ' + what + '.' : `${nameOf(g.players, lp.playerId)} gets last pick.`}
+        </p>
+        <p className="small" style={{ marginTop: 6 }}>
+          {mine ? `Choose one of these three for ${bars(RULES.lastPickCost)}. ${Math.ceil(left / 1000)} seconds, or one gets picked for you.` : 'Everyone else is sorted. They choose one of these three for a single gold bar.'}
+        </p>
+      </div>
+      <div className="stack" style={{ gap: 10 }}>
+        {lp.options.map((id) =>
+          mine ? (
+            <button key={id} className="pick" onClick={() => act({ a: 'pick', cardId: id })}>
+              <CardFace id={id} compact />
+              <span className="btn primary block">Take this</span>
+            </button>
+          ) : (
+            <CardFace key={id} id={id} compact />
+          ),
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -558,74 +611,94 @@ function Verdict(p: Ctx) {
 }
 
 /* ------------------------------------------------------------------------------- the reveal, one by one */
+const easeOut = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+
 function Reveal(p: Ctx) {
   const { g, r, now } = useCtx(p);
   const order = r.revealOrder ?? [];
   const verdict = r.verdict ?? {};
   const e = now - r.revealAt;
-  const startOf = (i: number) => TIMING.revealLeadMs + i * TIMING.revealStepMs;
+  const { beats, finalTwoAt } = revealTimeline(order.length);
   let current = -1;
-  order.forEach((_, i) => {
-    if (e >= startOf(i)) current = i;
+  beats.forEach((b, i) => {
+    if (e >= b.start) current = i;
   });
-  const named = (i: number) => e >= startOf(i) + TIMING.revealNameMs;
-  const last = order.length - 1;
+  const player = (id: string) => g.players.find((x) => x.id === id)!;
+  const finalTwo = order.slice(-2);
+  const inFinalTwo = current === order.length - 3 || (current < 0 && order.length <= 2) ? e >= finalTwoAt : false;
+  const winnerNamed = current === order.length - 1 && e >= beats[current].nameAt;
+  const earlier = order.slice(0, Math.max(0, current));
 
-  if (current < 0) {
-    return (
-      <div className="gauge-hero">
-        <Sun className="rise" />
-        <Heading>The verdict.</Heading>
+  let body: ReactNode;
+  if (inFinalTwo) {
+    body = (
+      <div className="stage-card rise" key="final-two">
+        <p className="label">Two left standing</p>
+        <div className="stack" style={{ gap: 6, alignItems: 'center' }}>
+          {finalTwo.map((id) => (
+            <p key={id} className="display" style={{ fontSize: 'clamp(40px, 11vw, 64px)' }}>
+              {player(id).name}
+            </p>
+          ))}
+        </div>
+        <p>Only one of them lasts longest.</p>
       </div>
     );
-  }
-
-  const id = order[current];
-  const pl = g.players.find((x) => x.id === id)!;
-  const isWinner = current === last;
-  return (
-    <div className="stack">
-      <div className="verdict-card rise" key={id}>
-        <p className="label">{isWinner ? 'And the Secret Survivalist, lasting' : 'Surviving'}</p>
-        <div className="display big-days">{plural(verdict[id], 'day')}</div>
+  } else if (current < 0) {
+    body = (
+      <div className="stage-card" key="intro">
+        <Sun className="rise" />
+        <p className="display" style={{ fontSize: 'clamp(44px, 12vw, 72px)' }}>
+          The verdict.
+        </p>
+      </div>
+    );
+  } else {
+    const b = beats[current];
+    const id = order[current];
+    const shown = Math.round(verdict[id] * easeOut((e - b.start) / b.rollMs));
+    const named = e >= b.nameAt;
+    const big = b.kind !== 'quick';
+    body = (
+      <div className={`stage-card rise ${big && !named ? 'drum' : ''}`} key={id}>
+        <p className="label">{b.kind === 'winner' ? 'The Secret Survivalist, surviving' : 'Surviving'}</p>
+        <div className="display big-days">{plural(shown, 'day')}</div>
         <p className="label">is…</p>
-        {named(current) ? (
+        {named ? (
           <div className="stack rise" style={{ alignItems: 'center', gap: 12 }}>
-            <p className="display" style={{ fontSize: 'clamp(44px, 13vw, 76px)' }}>
-              {pl.name}
+            <p className="display" style={{ fontSize: b.kind === 'winner' ? 'clamp(56px, 16vw, 96px)' : 'clamp(44px, 13vw, 76px)' }}>
+              {player(id).name}
             </p>
-            {isWinner && (
-              <div className="stamp small" style={{ color: 'var(--terra)' }}>
-                Secret Survivalist
-              </div>
-            )}
-            <p className="small muted">The data said {plural(r.days?.[id] ?? 0, 'day')}.</p>
+            {b.kind === 'winner' && <div className="stamp small red">Secret Survivalist</div>}
+            <p className="small">The data said {plural(r.days?.[id] ?? 0, 'day')}.</p>
           </div>
         ) : (
-          <p className="display" style={{ fontSize: 'clamp(44px, 13vw, 76px)', opacity: 0.25 }}>
+          <p className={`display suspense ${big ? 'slow' : ''}`} style={{ fontSize: 'clamp(44px, 13vw, 76px)' }}>
             ? ? ?
           </p>
         )}
       </div>
-      {current > 0 && (
-        <div className="stack" style={{ gap: 8 }}>
-          {order
-            .slice(0, current)
-            .reverse()
-            .map((pid) => {
-              const pp = g.players.find((x) => x.id === pid)!;
-              return (
-                <div key={pid} className="fate">
-                  <Dot colour={pp.colour} />
-                  <span className="nm">{pp.name}</span>
-                  <span className="small" style={{ fontWeight: 700 }}>
-                    {plural(verdict[pid], 'day')}
-                  </span>
-                </div>
-              );
-            })}
-        </div>
-      )}
+    );
+  }
+
+  return (
+    <div className={`stage ${winnerNamed ? 'lit' : ''}`} role="region" aria-label="The verdict">
+      <div className="stage-inner">
+        {body}
+        {earlier.length > 0 && !inFinalTwo && (
+          <div className="stack" style={{ gap: 8 }}>
+            {[...earlier].reverse().map((pid) => (
+              <div key={pid} className="fate">
+                <Dot colour={player(pid).colour} />
+                <span className="nm">{player(pid).name}</span>
+                <span className="small" style={{ fontWeight: 700 }}>
+                  {plural(verdict[pid], 'day')}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
