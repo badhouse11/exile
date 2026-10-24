@@ -4,7 +4,16 @@
 // tags: c = good in the cold, h = good in the heat, w = good near water, p = perishable (spoils in heat), d = back from the dead
 // kind = small category label; note = one-line subheading; battery = days of power, or "solar"
 
-export const LOCATIONS = [
+export type Category = "PARTNER" | "TOOL" | "FOOD" | "ANIMAL" | "ENJOYMENT";
+export type Temp = "FREEZING" | "MILD" | "SCORCHING";
+export interface Location { name: string; temp: Temp; water: boolean }
+export interface Card {
+  id: string; category: Category; name: string;
+  body: number; mind: number; supply: number; tags: string;
+  kind: string; note: string; battery: string; dead: boolean;
+}
+
+export const LOCATIONS: Location[] = [
   { name: "Snowbound Peak", temp: "FREEZING", water: false },
   { name: "Arctic Ice Shelf", temp: "FREEZING", water: true },
   { name: "Frozen Tundra", temp: "FREEZING", water: false },
@@ -535,20 +544,27 @@ Bridget Jones's Diary|1|5|1||Film|DVD player|3
 5,000-piece jigsaw of a clear blue sky|1|2|5||Game
 `;
 
-function parse(block, category) {
+function parse(block: string, category: Category): Card[] {
   return block.trim().split("\n").map((line, i) => {
     const [name, body, mind, supply, tags = "", kind = "", note = "", battery = ""] = line.split("|");
     return { id: `${category}-${i}`, category, name, body: +body, mind: +mind, supply: +supply, tags, kind, note, battery, dead: tags.includes("d") };
   });
 }
 
-export const CATEGORIES = ["PARTNER", "TOOL", "FOOD", "ANIMAL", "ENJOYMENT"];
-export const CATEGORY_LABELS = { PARTNER: "Partner", TOOL: "Survival tool", FOOD: "Food", ANIMAL: "Animal", ENJOYMENT: "Enjoyment" };
+export const CATEGORIES: Category[] = ["PARTNER", "TOOL", "FOOD", "ANIMAL", "ENJOYMENT"];
+export const CATEGORY_LABELS: Record<Category, string> = { PARTNER: "Partner", TOOL: "Survival tool", FOOD: "Food", ANIMAL: "Animal", ENJOYMENT: "Enjoyment" };
 
-export const CARDS = {
+export const CARDS: Record<Category, Card[]> = {
   PARTNER: parse(PARTNER, "PARTNER"),
   TOOL: parse(TOOL, "TOOL"),
   FOOD: parse(FOOD, "FOOD"),
   ANIMAL: parse(ANIMAL, "ANIMAL"),
   ENJOYMENT: parse(ENJOYMENT, "ENJOYMENT"),
+};
+
+const BY_ID = new Map<string, Card>(Object.values(CARDS).flat().map((c) => [c.id, c]));
+export const cardById = (id: string): Card => {
+  const c = BY_ID.get(id);
+  if (!c) throw new Error(`Unknown card ${id}`);
+  return c;
 };
