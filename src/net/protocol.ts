@@ -3,10 +3,11 @@
  * Shared by the server (Cloudflare) and the browser, so both always agree.
  */
 import type { Category, Temp } from '../data/cards';
+import type { Breakdown } from '../game/rules';
 
 export type Role = 'screen' | 'player' | 'guest';
 
-export type Phase = 'briefing' | 'deal' | 'odds' | 'pitch' | 'verdict' | 'reveal' | 'roundEnd' | 'final';
+export type Phase = 'briefing' | 'deal' | 'landing' | 'odds' | 'pitch' | 'verdict' | 'reveal' | 'roundEnd' | 'final';
 
 export interface Player {
   id: string;
@@ -26,6 +27,7 @@ export interface Auction {
   high: { playerId: string; amount: number } | null;
   endsAt: number; // server clock, ms
   bids: number;
+  passed: string[]; // players who've said no to this one
 }
 
 export interface Clock {
@@ -49,11 +51,14 @@ export interface RoundView {
   terrainAt: number; // when the terrain was revealed (for the big reveal moment)
   players: Record<string, RoundPlayer>;
   bonusFor: string | null;
-  days: Record<string, number> | null; // shown from the odds phase on
+  days: Record<string, number> | null; // the data, revealed one player at a time
+  breakdown: Record<string, Breakdown> | null;
+  dataOrder: string[]; // the order the data is revealed in, lowest first
+  dataStep: number; // how many players' data is showing
   pitchOrder: string[];
   pitchIndex: number;
-  ranking: string[] | null; // shown once the reveal starts
-  drop: Record<string, number> | null;
+  verdict: Record<string, number> | null; // the Adjudicator's days, shown once the reveal starts
+  revealOrder: string[] | null; // shortest survival first, the Secret Survivalist last
   revealAt: number;
   winnerId: string | null;
   nextDealAt: number | null;
@@ -99,13 +104,16 @@ export interface View {
 export type Action =
   | { a: 'takeOff' }
   | { a: 'bid'; amount: number }
+  | { a: 'pass' }
+  | { a: 'seeData' }
+  | { a: 'nextData' }
   | { a: 'toPitches' }
   | { a: 'clockStart' }
   | { a: 'clockPause' }
   | { a: 'clockReset' }
   | { a: 'nextPitch' }
   | { a: 'debunk' }
-  | { a: 'verdict'; ranking: string[] }
+  | { a: 'verdict'; days: Record<string, number> }
   | { a: 'nextRound' }
   | { a: 'autoFill'; playerId: string }
   | { a: 'kick'; playerId: string }

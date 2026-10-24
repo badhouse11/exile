@@ -70,7 +70,7 @@ button {
   min-height: 100dvh;
   max-width: 560px;
   margin: 0 auto;
-  padding-block: max(14px, env(safe-area-inset-top, 0px)) max(28px, env(safe-area-inset-bottom, 0px));
+  padding-block: max(14px, env(safe-area-inset-top, 0px)) calc(max(28px, env(safe-area-inset-bottom, 0px)) + 72px);
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex;
@@ -804,7 +804,7 @@ input.code {
 .toast {
   position: fixed;
   left: 50%;
-  top: calc(max(14px, env(safe-area-inset-top, 0px)) + 48px);
+  bottom: max(18px, env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 60;
   max-width: min(520px, calc(100vw - 32px));
@@ -979,4 +979,98 @@ input.code {
 .overlay .stack {
   gap: 26px;
   align-items: center;
+}
+
+/* ---------------------------------------------------------------- what to do */
+.how {
+  border: 2px dashed var(--ink);
+  border-radius: var(--radius);
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.how p {
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* ---------------------------------------------------------------- the data breakdown */
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) 46px;
+  gap: 10px;
+  align-items: center;
+}
+
+.stat .bar {
+  height: 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.stat .bar i {
+  display: block;
+  height: 100%;
+  background: var(--solace);
+  animation: grow 0.9s ease both;
+  transform-origin: left;
+}
+
+.stat .num {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ---------------------------------------------------------------- the Adjudicator's days */
+.slider {
+  width: 100%;
+  accent-color: var(--solace);
+  height: 28px;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.stepper .btn {
+  padding: 10px 4px;
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+/* ---------------------------------------------------------------- the reveal */
+.verdict-card {
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--paper-2);
+  padding: 22px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.big-days {
+  font-size: clamp(64px, 20vw, 120px);
 }

@@ -6,11 +6,13 @@
  */
 import { CATEGORIES, cardById } from '../data/cards';
 import type { Category, Location } from '../data/cards';
+import type { Breakdown } from '../game/rules';
 import {
   PALETTE_KEYS,
   RULES,
   TIMING,
-  dropDays,
+  MAX_VERDICT_DAYS,
+  breakdown,
   emptyKit,
   maxBid,
   pickCard,
@@ -54,10 +56,13 @@ export interface Round {
   players: Record<string, RoundPlayer>;
   bonusFor: string | null;
   days: Record<string, number> | null;
+  breakdown: Record<string, Breakdown> | null;
+  dataOrder: string[];
+  dataStep: number;
   pitchOrder: string[];
   pitchIndex: number;
-  ranking: string[] | null;
-  drop: Record<string, number> | null;
+  verdict: Record<string, number> | null;
+  revealOrder: string[] | null;
   revealAt: number;
   winnerId: string | null;
   nextDealAt: number | null;
@@ -129,17 +134,20 @@ function newRound(players: Player[], adjudicatorId: string, bonusFor: string | n
     players: rp,
     bonusFor: bonusFor && rp[bonusFor] ? bonusFor : null,
     days: null,
+    breakdown: null,
+    dataOrder: [],
+    dataStep: 0,
     pitchOrder: [],
     pitchIndex: 0,
-    ranking: null,
-    drop: null,
+    verdict: null,
+    revealOrder: null,
     revealAt: 0,
     winnerId: null,
     nextDealAt: null,
   };
 }
 
-const ODDS_PHASES: Phase[] = ['odds', 'pitch', 'verdict', 'reveal', 'roundEnd', 'final'];
+const AFTER_DATA: Phase[] = ['pitch', 'verdict', 'reveal', 'roundEnd', 'final'];
 
 export class RoomCore {
   private online = new Set<string>();
@@ -403,9 +411,27 @@ export class RoomCore {
         break;
       }
 
+      case 'pass':
+        this.pass(m);
+        break;
+
+      case 'seeData':
+        this.requireRunner(m);
+        this.requirePhase('landing');
+        g.phase = 'odds';
+        r.dataStep = 0;
+        break;
+
+      case 'nextData':
+        this.requireRunner(m);
+        this.requirePhase('odds');
+        if (r.dataStep < r.dataOrder.length) r.dataStep += 1;
+        break;
+
       case 'toPitches':
         this.requireRunner(m);
         this.requirePhase('odds');
+        if (r.dataStep < r.dataOrder.length) throw new Denied('Reveal everyone’s data first.');
         g.phase = 'pitch';
         r.pitchOrder = shuffle(Object.keys(r.players), this.rng);
         r.pitchIndex = 0;
@@ -468,13 +494,19 @@ export class RoomCore {
         this.requireRunner(m);
         this.requirePhase('verdict');
         const ids = Object.keys(r.players);
-        const ranking = Array.isArray(action.ranking) ? action.ranking.map(String) : [];
-        if (ranking.length !== ids.length || new Set(ranking).size !== ids.length || !ranking.every((id) => ids.includes(id))) {
-          throw new Denied('Rank every survivor, once each.');
+        const raw = action.days && typeof action.days === 'object' ? action.days : {};
+        const days: Record<string, number> = {};
+        for (const id of ids) {
+          const d = Math.round(Number(raw[id]));
+          if (!Number.isFinite(d) || d < 0 || d > MAX_VERDICT_DAYS) throw new Denied('Give every player a number of days.');
+          days[id] = d;
         }
-        r.ranking = ranking;
-        r.drop = dropDays(ranking, r.days ?? {});
-        r.winnerId = ranking[0];
+        const order = [...ids].sort((a, b) => days[a] - days[b]);
+        const top = days[order[order.length - 1]];
+        if (order.filter((id) => days[id] === top).length > 1) throw new Denied('Two players can’t both last longest. Break the tie.');
+        r.verdict = days;
+        r.revealOrder = order;
+        r.winnerId = order[order.length - 1];
         r.revealAt = this.now;
         g.phase = 'reveal';
         break;
@@ -521,10 +553,28 @@ export class RoomCore {
     if (value > cap) throw new Denied(`You can bid ${cap} at most and still afford a full bag.`);
     a.high = { playerId: m.playerId, amount: value };
     a.bids += 1;
+    a.passed = a.passed.filter((id) => id !== m.playerId);
     a.endsAt = Math.max(a.endsAt, this.now + TIMING.bidMs);
-    const rivals = this.eligible(cat).filter((id) => id !== m.playerId);
+    const rivals = this.eligible(cat).filter((id) => id !== m.playerId && !a.passed.includes(id));
     const canBeat = rivals.some((id) => maxBid(g.round.players[id].gold, g.round.players[id].kit) > value);
     if (!canBeat) a.endsAt = Math.min(a.endsAt, this.now + (rivals.length === 0 ? 900 : TIMING.settledMs));
+  }
+
+  private pass(m: Meta) {
+    const g = this.g;
+    this.requirePhase('deal');
+    const a = this.state.auction;
+    if (!a) throw new Denied('Nothing’s up for grabs yet.');
+    if (m.role !== 'player' || !m.playerId) throw new Denied('Only players can pass.');
+    const rp = g.round.players[m.playerId];
+    if (!rp) throw new Denied('The Adjudicator doesn’t bid.');
+    const cat = cardById(a.cardId).category;
+    if (rp.kit[cat]) throw new Denied('You’re not in on this one anyway.');
+    if (a.high?.playerId === m.playerId) throw new Denied('You’re the top bid. You can’t pass now.');
+    if (!a.passed.includes(m.playerId)) a.passed.push(m.playerId);
+    // Everyone left has passed: settle it now.
+    const waiting = this.eligible(cat).filter((id) => id !== a.high?.playerId && !a.passed.includes(id));
+    if (waiting.length === 0) a.endsAt = Math.min(a.endsAt, this.now + TIMING.passedMs);
   }
 
   private eligible(cat: Category): string[] {
@@ -541,7 +591,7 @@ export class RoomCore {
     g.round.nextDealAt = null;
     if (!card) return;
     g.usedCards.push(card.id);
-    this.state.auction = { cardId: card.id, high: null, endsAt: this.now + TIMING.openMs, bids: 0 };
+    this.state.auction = { cardId: card.id, high: null, endsAt: this.now + TIMING.openMs, bids: 0, passed: [] };
   }
 
   private resolveAuction() {
@@ -561,7 +611,7 @@ export class RoomCore {
     this.afterSale();
   }
 
-  /** After every card: the halfway terrain reveal, the end of the deal, or the next card. */
+  /** After every card: the end of the deal (and the landing), or the next card. */
   private afterSale() {
     const g = this.g;
     const r = g.round;
@@ -569,21 +619,24 @@ export class RoomCore {
     const all = Object.values(r.players);
     const total = all.length * CATEGORIES.length;
     const filled = all.reduce((n, rp) => n + (CATEGORIES.length - slotsLeft(rp.kit)), 0);
-    let pause = TIMING.betweenCardsMs;
-    if (!r.terrainRevealed && (filled >= Math.ceil(total / 2) || filled === total)) {
+    if (filled === total) {
       r.terrainRevealed = true;
       r.terrainAt = this.now;
-      this.say(`It’s the ${loc.name}.`, 'terrain');
-      pause = TIMING.terrainMs;
-    }
-    if (filled === total) {
       r.days = {};
-      for (const [id, rp] of Object.entries(r.players)) r.days[id] = survivalDays(CATEGORIES.map((c) => rp.kit[c]!), loc);
-      g.phase = 'odds';
+      r.breakdown = {};
+      for (const [id, rp] of Object.entries(r.players)) {
+        const kit = CATEGORIES.map((c) => rp.kit[c]!);
+        r.days[id] = survivalDays(kit, loc);
+        r.breakdown[id] = breakdown(kit, loc);
+      }
+      r.dataOrder = Object.keys(r.players).sort((a, b) => r.days![a] - r.days![b]);
+      r.dataStep = 0;
+      g.phase = 'landing';
       r.nextDealAt = null;
+      this.say(`Touchdown. It’s the ${loc.name}.`, 'terrain');
       return;
     }
-    if (!this.state.auction) r.nextDealAt = this.now + pause;
+    if (!this.state.auction) r.nextDealAt = this.now + TIMING.betweenCardsMs;
   }
 
   private backToLobby() {
@@ -648,8 +701,11 @@ export class RoomCore {
     let game: View['game'] = null;
     if (g) {
       const r = g.round;
-      const showOdds = ODDS_PHASES.includes(g.phase);
+      const afterData = AFTER_DATA.includes(g.phase);
       const showRanking = g.phase === 'reveal' || g.phase === 'roundEnd' || g.phase === 'final';
+      // During the data reveal, only the players already revealed are sent.
+      const shown = afterData ? r.dataOrder : g.phase === 'odds' ? r.dataOrder.slice(0, r.dataStep) : [];
+      const pick = <T,>(src: Record<string, T> | null) => (src ? Object.fromEntries(shown.map((id) => [id, src[id]])) : null);
       game = {
         phase: g.phase,
         players: g.players,
@@ -663,11 +719,14 @@ export class RoomCore {
           terrainAt: r.terrainAt,
           players: r.players,
           bonusFor: r.bonusFor,
-          days: showOdds ? r.days : null,
+          days: shown.length ? pick(r.days) : null,
+          breakdown: shown.length ? pick(r.breakdown) : null,
+          dataOrder: shown,
+          dataStep: afterData ? r.dataOrder.length : r.dataStep,
           pitchOrder: r.pitchOrder,
           pitchIndex: r.pitchIndex,
-          ranking: showRanking ? r.ranking : null,
-          drop: showRanking ? r.drop : null,
+          verdict: showRanking ? r.verdict : null,
+          revealOrder: showRanking ? r.revealOrder : null,
           revealAt: r.revealAt,
           winnerId: showRanking ? r.winnerId : null,
           nextDealAt: r.nextDealAt,

@@ -82,6 +82,17 @@ function playGame(n: number, seed: number) {
       // A random eligible player bids, sometimes nobody does.
       const eligible = Object.entries(r.players).filter(([, rp]) => !rp.kit[cat]);
       assert.ok(eligible.length > 0, 'every dealt card has someone who needs it');
+      // Sometimes everyone passes: the card goes quickly.
+      if (!a.high && rng() < 0.12) {
+        for (const [pid] of eligible) {
+          const out = send(idx(pid), { t: 'act', action: { a: 'pass' } });
+          assert.equal(out.reply, undefined, JSON.stringify(out.reply));
+        }
+        assert.ok(core.state.auction!.endsAt <= now + 1000, 'all passed: settles fast');
+        advance(1000);
+        assert.equal(core.state.auction?.cardId === a.cardId, false, 'passed card is gone');
+        continue;
+      }
       if (rng() < 0.85) {
         const [pid, rp] = eligible[Math.floor(rng() * eligible.length)];
         const floor = a.high ? a.high.amount + 1 : 1;
@@ -100,8 +111,18 @@ function playGame(n: number, seed: number) {
       // Nobody ever goes bust.
       for (const rp of Object.values(r.players)) assert.ok(rp.gold >= 0);
     }
-    assert.equal(g.phase, 'odds');
+    assert.equal(g.phase, 'landing');
     assert.ok(r.terrainRevealed);
+    send(adj, { t: 'act', action: { a: 'seeData' } });
+    assert.equal(g.phase, 'odds');
+    assert.equal(send(adj, { t: 'act', action: { a: 'toPitches' } }).reply?.t, 'error', 'data first');
+    const before = core.viewFor(metas[(adj + 1) % n], online(), now);
+    assert.equal(before.game!.round.days, null, 'no data until revealed');
+    for (let k = 0; k < r.dataOrder.length; k++) {
+      send(adj, { t: 'act', action: { a: 'nextData' } });
+      const v = core.viewFor(metas[(adj + 1) % n], online(), now);
+      assert.equal(Object.keys(v.game!.round.days!).length, k + 1, 'one more player revealed');
+    }
     for (const rp of Object.values(r.players)) for (const c of CATEGORIES) assert.ok(rp.kit[c], 'every slot filled');
     assert.ok(Object.values(r.days!).every((d) => d >= 2));
 
@@ -125,18 +146,24 @@ function playGame(n: number, seed: number) {
     assert.equal(g.phase, 'verdict');
 
     const ids = Object.keys(r.players);
-    assert.equal(send(adj, { t: 'act', action: { a: 'verdict', ranking: ids.slice(1) } }).reply?.t, 'error', 'must rank everyone');
-    const ranking = [...ids].sort(() => rng() - 0.5);
-    send(adj, { t: 'act', action: { a: 'verdict', ranking } });
+    // Missing a player, or a tie at the top, is refused.
+    assert.equal(send(adj, { t: 'act', action: { a: 'verdict', days: { [ids[0]]: 10 } } }).reply?.t, 'error');
+    const tied = Object.fromEntries(ids.map((id) => [id, 50]));
+    assert.equal(send(adj, { t: 'act', action: { a: 'verdict', days: tied } }).reply?.t, 'error', 'no tie at the top');
+    // The Adjudicator overrules the data.
+    const verdict = Object.fromEntries(ids.map((id, i) => [id, (r.days![id] ?? 10) + Math.round(rng() * 40) + i * 1000 * 0 + i]));
+    const top = Math.max(...Object.values(verdict));
+    const leaders = ids.filter((id) => verdict[id] === top);
+    if (leaders.length > 1) verdict[leaders[0]] += 1;
+    send(adj, { t: 'act', action: { a: 'verdict', days: verdict } });
     assert.equal(g.phase, 'reveal');
-    const drop = r.drop!;
-    // The survivor lasts longest; days rise as the order goes on.
-    const order = [...ranking].reverse().map((id) => drop[id]);
-    for (let i = 1; i < order.length; i++) assert.ok(order[i] > order[i - 1]);
+    const order = r.revealOrder!;
+    for (let i = 1; i < order.length; i++) assert.ok(verdict[order[i]] >= verdict[order[i - 1]], 'shortest first');
+    const winner = order[order.length - 1];
+    assert.equal(r.winnerId, winner);
     advance(60_000);
     assert.equal(g.phase, 'roundEnd');
     assert.equal(g.results.length, round + 1);
-    const winner = ranking[0];
     send(adj, { t: 'act', action: { a: 'nextRound' } });
     if (round < n - 1) {
       assert.equal(g.round.players[winner]?.gold ?? RULES.goldPerRound + 1, RULES.goldPerRound + 1, 'winner bonus bar');

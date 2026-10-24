@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 import { CardFace, Dot, Kit, Ticks, nameOf, tempColour } from '../components/Bits';
 import { GoldGlyph, PlaneGlyph, Sun, ThermoGlyph } from '../components/Icons';
 import { CATEGORIES, cardById } from '../data/cards';
-import { RULES, TIMING, maxBid } from '../game/rules';
+import { BREAKDOWN_MAX, MAX_VERDICT_DAYS, RULES, TIMING, maxBid } from '../game/rules';
 import type { GameView, Player, View } from '../net/protocol';
 import type { Room } from '../net/useRoom';
 
@@ -34,8 +34,10 @@ export default function Phase(props: Ctx) {
       return <Briefing {...props} />;
     case 'deal':
       return <Deal {...props} />;
+    case 'landing':
+      return <Landing {...props} />;
     case 'odds':
-      return <Odds {...props} />;
+      return <Data {...props} />;
     case 'pitch':
       return <Pitch {...props} />;
     case 'verdict':
@@ -55,9 +57,20 @@ const Heading = ({ children, size = 52 }: { children: ReactNode; size?: number }
   </h1>
 );
 
+/** The plain "what to do now" line on every screen. */
+export const How = ({ children }: { children: ReactNode }) => (
+  <div className="how">
+    <span className="label">What to do</span>
+    <p>{children}</p>
+  </div>
+);
+
+const bars = (n: number) => `${n} gold ${n === 1 ? 'bar' : 'bars'}`;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
 /* ------------------------------------------------------------------------------- briefing */
 function Briefing(p: Ctx) {
-  const { g, r, me, isAdj, canRun, act } = useCtx(p);
+  const { g, r, me, isAdj, canRun, act, view } = useCtx(p);
   const adjName = nameOf(g.players, r.adjudicatorId);
   const myGold = me && r.players[me]?.gold;
   return (
@@ -68,32 +81,29 @@ function Briefing(p: Ctx) {
       {isAdj ? (
         <>
           <Heading>You’re the Adjudicator.</Heading>
-          <p>You don’t pack this round. You watch what everyone grabs, hear their pitches and decide who lasts longest.</p>
-          <p className="muted">When everyone’s ready, take off. The temperature gauge goes up first. Where you’re landing stays secret until halfway through.</p>
+          <p>You don’t pack a bag this round. You watch what everyone grabs, hear their pitches, then decide how long each of them really lasts.</p>
+          <How>When everyone’s ready, tap Take off.</How>
         </>
       ) : (
         <>
           <Heading>{adjName} is the Adjudicator.</Heading>
-          <p>Five slots in your bag. Items come up in random order, so don’t blow everything on the first thing you see.</p>
+          <p>You’re about to be flown out. You can take five things: a partner, a survival tool, food, an animal and something for fun.</p>
           {myGold ? (
             <div className="panel dark">
               <p className="label">Your gold this round</p>
               <p className="display" style={{ fontSize: 44 }}>
-                {myGold} bars
+                {bars(myGold)}
               </p>
               {r.bonusFor === me && <p className="small">Includes your Secret Survivalist bonus bar.</p>}
             </div>
           ) : null}
+          {!view.you.isHost || !canRun ? <How>Wait for {adjName} to take off.</How> : null}
         </>
       )}
-      {canRun ? (
+      {canRun && (
         <button className="btn primary big block" onClick={() => act({ a: 'takeOff' })}>
           Take off
         </button>
-      ) : (
-        <p className="label" style={{ textAlign: 'center' }}>
-          Waiting for take-off
-        </p>
       )}
       <Players view={p.view} />
     </div>
@@ -116,7 +126,7 @@ function Deal(p: Ctx) {
         <div className="display" style={{ color: tempColour(r.temp) }}>
           {r.temp}
         </div>
-        <p className="muted">You’ll find out exactly where halfway through.</p>
+        <p className="muted">That’s all you get. You’ll find out exactly where you’ve landed once everyone’s packed.</p>
       </div>
     );
   }
@@ -125,21 +135,31 @@ function Deal(p: Ctx) {
 
   return (
     <div className="stack">
-      {a ? <Lot ctx={p} /> : <div className="card-back"><Sun /></div>}
+      {rp ? (
+        <How>Bid gold bars on what you want, or tap Pass. You need one of each. Once a slot’s filled, it’s locked.</How>
+      ) : isAdj ? (
+        <How>You’re judging this round. Watch what everyone packs. You’ll hear why it matters soon.</How>
+      ) : null}
+
+      {a ? (
+        <Lot ctx={p} />
+      ) : (
+        <div className="card-back">
+          <Sun />
+        </div>
+      )}
 
       {rp && (
         <section className="stack" style={{ gap: 8 }}>
           <div className="bidline">
             <span className="label">Your bag</span>
             <span className="icon-line" style={{ fontWeight: 700 }}>
-              <GoldGlyph /> {rp.gold} gold
+              <GoldGlyph /> {bars(rp.gold)} left
             </span>
           </div>
           <Kit kit={rp.kit} />
         </section>
       )}
-
-      {isAdj && <p className="small muted">You’re judging this round. Watch what they pack; you’ll hear why it matters soon.</p>}
 
       {canRun && away.length > 0 && (
         <div className="panel stack" style={{ gap: 8 }}>
@@ -170,8 +190,10 @@ function Lot({ ctx }: { ctx: Ctx }) {
   const cap = rp ? maxBid(rp.gold, rp.kit) : 0;
   const needIt = !!rp && !rp.kit[card.category];
   const top = a.high?.playerId === me;
-  const options = [...new Set([floor, floor + 1, floor + 4])].filter((n) => n <= cap);
+  const passed = !!me && a.passed.includes(me);
+  const raises = [...new Set([floor + 1, floor + 4])].filter((n) => n <= cap);
   const bidders = Object.entries(r.players).filter(([, x]) => !x.kit[card.category]).length;
+  const passers = a.passed.map((id) => (id === me ? 'You' : nameOf(g.players, id)));
 
   return (
     <section className="stack" style={{ gap: 12 }}>
@@ -189,93 +211,181 @@ function Lot({ ctx }: { ctx: Ctx }) {
                 {a.high.playerId === me ? 'You' : nameOf(g.players, a.high.playerId)}
               </span>
             ) : (
-              `${bidders} ${bidders === 1 ? 'player needs' : 'players need'} one of these`
+              `${plural(bidders, 'player needs', 'players need')} one of these`
             )}
           </p>
         </div>
         <div className="amount">{a.high ? a.high.amount : '–'}</div>
       </div>
+      {passers.length > 0 && <p className="small muted">Passed: {passers.join(', ')}</p>}
+
       {rp &&
-        (needIt ? (
-          top ? (
-            <div className="panel dark" style={{ textAlign: 'center', fontWeight: 700 }}>
-              You’re the top bid. Hold your nerve.
-            </div>
-          ) : options.length ? (
-            <div className="bidpad">
-              {options.map((n, i) => (
-                <button key={n} className={`btn ${i === 0 ? 'primary' : ''}`} onClick={() => act({ a: 'bid', amount: n })}>
-                  {n}
-                  <small>{i === 0 ? 'Bid' : 'Jump to'}</small>
+        (!needIt ? (
+          <p className="small muted" style={{ textAlign: 'center' }}>
+            You’ve already packed {card.category === 'ENJOYMENT' ? 'something for fun' : card.category === 'TOOL' ? 'a survival tool' : `a ${card.category.toLowerCase()}`}. Sit this one out.
+          </p>
+        ) : top ? (
+          <div className="panel dark" style={{ textAlign: 'center', fontWeight: 700 }}>
+            You’re the top bid. Hold your nerve.
+          </div>
+        ) : passed ? (
+          <div className="panel" style={{ textAlign: 'center' }}>
+            <p style={{ fontWeight: 700 }}>You passed on this one.</p>
+          </div>
+        ) : floor > cap ? (
+          <div className="stack" style={{ gap: 8 }}>
+            <p className="small muted" style={{ textAlign: 'center' }}>
+              Too rich for you. You need to keep one gold bar for every empty slot.
+            </p>
+            <button className="btn block" onClick={() => act({ a: 'pass' })}>
+              Pass
+            </button>
+          </div>
+        ) : (
+          <div className="stack" style={{ gap: 10 }}>
+            <button className="btn primary big block" onClick={() => act({ a: 'bid', amount: floor })}>
+              Bid {bars(floor)}
+            </button>
+            <div className="row">
+              {raises.map((n) => (
+                <button key={n} className="btn" onClick={() => act({ a: 'bid', amount: n })}>
+                  Bid {n}
                 </button>
               ))}
+              <button className="btn ghost" onClick={() => act({ a: 'pass' })}>
+                Pass
+              </button>
             </div>
-          ) : (
             <p className="small muted" style={{ textAlign: 'center' }}>
-              Out of your range. You need to keep one bar for every empty slot.
+              You can bid up to {bars(cap)} on this.
             </p>
-          )
-        ) : (
-          <p className="small muted" style={{ textAlign: 'center' }}>
-            You’ve already packed {card.category === 'ENJOYMENT' ? 'something for fun' : `a ${card.category.toLowerCase()}`}. Sit this one out.
-          </p>
+          </div>
         ))}
-      {rp && needIt && !top && options.length > 0 && (
-        <p className="small muted" style={{ textAlign: 'center' }}>
-          You can bid up to {cap}.
-        </p>
-      )}
     </section>
   );
 }
 
-/* ------------------------------------------------------------------------------- the data */
-function Odds(p: Ctx) {
-  const { g, r, canRun, act, view } = useCtx(p);
+/* ------------------------------------------------------------------------------- landing */
+function Landing(p: Ctx) {
+  const { r, canRun, act, me, isAdj, view } = useCtx(p);
+  const rp = me ? r.players[me] : undefined;
   return (
     <div className="stack">
-      <Heading>Data suggests…</Heading>
-      <p className="muted">It’s only data. The pitch is what counts.</p>
-      <BagsWithDays g={g} me={view.you.playerId} />
-      {canRun ? (
-        <button className="btn primary big block" onClick={() => act({ a: 'toPitches' })}>
-          Start the pitches
-        </button>
-      ) : (
-        <p className="label" style={{ textAlign: 'center' }}>
-          {r.adjudicatorId === view.you.playerId ? '' : 'Get your pitch ready: why will you make it?'}
-        </p>
+      <div className="gauge-hero" style={{ paddingBottom: 26 }}>
+        <p className="label">Touchdown. You’re spending the rest of your days in the</p>
+        <div className="stamp" style={{ color: tempColour(r.temp), fontSize: 'clamp(40px, 12vw, 84px)' }}>
+          {r.terrain}
+        </div>
+      </div>
+      {rp && (
+        <section className="stack" style={{ gap: 8 }}>
+          <span className="label">What you brought</span>
+          <Kit kit={rp.kit} />
+        </section>
       )}
+      <How>
+        {isAdj
+          ? 'Let it sink in. Then tap the button to see what the data says about everyone’s chances.'
+          : 'Take a look at your bag. Is it any use here? The data on everyone’s chances is coming next.'}
+      </How>
+      {canRun && (
+        <button className="btn primary big block" onClick={() => act({ a: 'seeData' })}>
+          See what the data says
+        </button>
+      )}
+      <Players view={view} />
     </div>
   );
 }
 
-function BagsWithDays({ g, me, only }: { g: GameView; me: string | null; only?: string }) {
-  const r = g.round;
-  const ids = Object.keys(r.players)
-    .filter((id) => !only || id === only)
-    .sort((x, y) => (r.days?.[y] ?? 0) - (r.days?.[x] ?? 0));
+/* ------------------------------------------------------------------------------- the data, one by one */
+function Data(p: Ctx) {
+  const { g, r, canRun, act, me } = useCtx(p);
+  const total = Object.keys(r.players).length;
+  const shown = r.dataOrder;
+  const done = shown.length >= total;
+  const latest = shown[shown.length - 1];
   return (
-    <div className="stack" style={{ gap: 10 }}>
-      {ids.map((id) => {
-        const pl = g.players.find((x) => x.id === id)!;
-        return (
-          <article className="odds rise" key={id}>
-            <header style={{ background: id === me ? 'var(--paper-2)' : undefined }}>
-              <Dot colour={pl.colour} />
-              <span className="nm">{id === me ? `${pl.name} (you)` : pl.name}</span>
-              <span className="days">
-                {r.days?.[id] ?? '?'}
-                <small>DAYS</small>
-              </span>
-            </header>
-            <div className="body">
-              <Kit kit={r.players[id].kit} />
-            </div>
-          </article>
-        );
-      })}
+    <div className="stack">
+      <div>
+        <p className="label">
+          {done ? 'All the numbers are in' : `Player ${shown.length} of ${total}`}
+        </p>
+        <Heading>What the data says</Heading>
+      </div>
+      {shown.length === 0 && (
+        <How>
+          {canRun
+            ? 'Tap the button to reveal each player’s numbers, one at a time. Lowest first.'
+            : 'The Adjudicator is about to reveal everyone’s numbers, one at a time.'}
+        </How>
+      )}
+      {[...shown].reverse().map((id) => (
+        <DataCard key={id} g={g} id={id} me={me} fresh={id === latest && !done} />
+      ))}
+      {done && (
+        <div className="panel dark stack rise" style={{ gap: 8, textAlign: 'center' }}>
+          <p className="label">However…</p>
+          <p className="display" style={{ fontSize: 'clamp(30px, 8vw, 46px)' }}>
+            The data may suggest this. But it comes down to the pitches.
+          </p>
+          <p>Each of you gets two minutes to tell the Adjudicator why you’ll last longer than the numbers say.</p>
+        </div>
+      )}
+      {canRun && !done && (
+        <button className="btn primary big block" onClick={() => act({ a: 'nextData' })}>
+          {shown.length === 0 ? 'Reveal the first player' : 'Reveal the next player'}
+        </button>
+      )}
+      {canRun && done && (
+        <button className="btn primary big block" onClick={() => act({ a: 'toPitches' })}>
+          Start the pitches
+        </button>
+      )}
+      {!canRun && !done && shown.length > 0 && <p className="label" style={{ textAlign: 'center' }}>{plural(total - shown.length, 'player')} still to come</p>}
     </div>
+  );
+}
+
+const STAT_LABELS: [keyof NonNullable<GameView['round']['breakdown']>[string], string][] = [
+  ['body', 'Health'],
+  ['mind', 'Morale'],
+  ['supply', 'Supplies'],
+];
+
+function DataCard({ g, id, me, fresh = false }: { g: GameView; id: string; me: string | null; fresh?: boolean }) {
+  const r = g.round;
+  const pl = g.players.find((x) => x.id === id)!;
+  const b = r.breakdown?.[id];
+  return (
+    <article className={`odds ${fresh ? 'rise' : ''}`}>
+      <header style={{ background: id === me ? 'var(--paper-2)' : undefined }}>
+        <Dot colour={pl.colour} />
+        <span className="nm">{id === me ? `${pl.name} (you)` : pl.name}</span>
+        <span className="days">
+          {r.days?.[id] ?? '?'}
+          <small>DAYS</small>
+        </span>
+      </header>
+      <div className="body stack" style={{ gap: 10 }}>
+        <Kit kit={r.players[id].kit} />
+        {b && (
+          <div className="stats">
+            {STAT_LABELS.map(([k, label]) => (
+              <div className="stat" key={k}>
+                <span className="label">{label}</span>
+                <span className="bar">
+                  <i style={{ width: `${Math.round((b[k] / BREAKDOWN_MAX) * 100)}%` }} />
+                </span>
+                <span className="num">
+                  {b[k]}/{BREAKDOWN_MAX}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </article>
   );
 }
 
@@ -296,10 +406,17 @@ function Pitch(p: Ctx) {
     <div className="stack">
       <div>
         <p className="label">
-          Pitch {r.pitchIndex + 1} of {r.pitchOrder.length}
+          Pitch {r.pitchIndex + 1} of {r.pitchOrder.length} · The data may suggest it, the pitch decides it
         </p>
         <Heading>{pitcher === me ? 'You’re up. Why will you make it?' : `${nameOf(g.players, pitcher)} is pitching`}</Heading>
       </div>
+      <How>
+        {pitcher === me
+          ? 'You’ve got two minutes. Tell the Adjudicator why your bag keeps you alive longer than the data says.'
+          : isAdj
+            ? 'Start the clock when they begin. When they’re done, move on to the next player.'
+            : 'Listen. If you think it’s nonsense, play your Debunk card. You only get one per game.'}
+      </How>
       <div className={`clock ${left < 15000 ? 'low' : ''}`}>
         {mm}:{ss}
       </div>
@@ -344,7 +461,7 @@ function Pitch(p: Ctx) {
           </button>
         ))}
       {mine && !isAdj && mine.debunkUsed && <p className="small muted">You’ve played your Debunk card this game.</p>}
-      <BagsWithDays g={g} me={me} only={pitcher} />
+      <DataCard g={g} id={pitcher} me={me} />
       {next && <p className="small muted">Up next: {r.pitchOrder.slice(r.pitchIndex + 1).map((id) => nameOf(g.players, id)).join(', ')}</p>}
     </div>
   );
@@ -353,8 +470,8 @@ function Pitch(p: Ctx) {
 /* ------------------------------------------------------------------------------- verdict */
 function Verdict(p: Ctx) {
   const { g, r, canRun, act, view } = useCtx(p);
-  const [order, setOrder] = useState<string[]>([]);
   const ids = Object.keys(r.players);
+  const [days, setDays] = useState<Record<string, number>>(() => Object.fromEntries(ids.map((id) => [id, r.days?.[id] ?? 30])));
 
   if (!canRun) {
     return (
@@ -362,100 +479,153 @@ function Verdict(p: Ctx) {
         <div className="gauge-hero">
           <Sun className="rise" />
         </div>
-        <Heading>The Adjudicator is deliberating.</Heading>
-        <p className="muted">Phones face down. Look nervous.</p>
+        <Heading>The Adjudicator is deciding.</Heading>
+        <How>Phones face down. The Adjudicator is working out how long each of you really lasts. The data was only the start.</How>
         <Players view={view} />
       </div>
     );
   }
 
-  const tap = (id: string) => setOrder((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
-  const done = order.length === ids.length;
+  const set = (id: string, v: number) => setDays((d) => ({ ...d, [id]: Math.max(0, Math.min(MAX_VERDICT_DAYS, Math.round(v))) }));
+  const top = Math.max(...ids.map((id) => days[id]));
+  const tied = ids.filter((id) => days[id] === top).length > 1;
   return (
     <div className="stack">
-      <Heading>Who lasts longest?</Heading>
-      <p className="muted">Tap your survivor first, then the rest in order. The last one you tap is the first to go. Tap again to undo.</p>
-      <div className="stack" style={{ gap: 8 }}>
-        {ids.map((id) => {
-          const pos = order.indexOf(id);
-          const pl = g.players.find((x) => x.id === id)!;
-          return (
-            <button key={id} className={`rank-btn ${pos >= 0 ? 'picked' : ''}`} onClick={() => tap(id)}>
-              <span className="pos">{pos >= 0 ? pos + 1 : ''}</span>
+      <Heading>How long do they really last?</Heading>
+      <How>
+        Each player starts on what the data said. Now move their days up or down, based on their pitch. Whoever you give the most days wins the round.
+      </How>
+      {ids.map((id) => {
+        const pl = g.players.find((x) => x.id === id)!;
+        const v = days[id];
+        const data = r.days?.[id] ?? 0;
+        const diff = v - data;
+        return (
+          <article className="odds" key={id}>
+            <header>
               <Dot colour={pl.colour} />
               <span className="nm">{pl.name}</span>
-              <span className="small muted">data: {r.days?.[id]} days</span>
-            </button>
-          );
-        })}
-      </div>
-      <button className="btn primary big block" aria-disabled={!done} onClick={() => done && act({ a: 'verdict', ranking: order })}>
-        {done ? 'Lock the verdict' : `Rank ${ids.length - order.length} more`}
+              <span className="days">
+                {v}
+                <small>DAYS</small>
+              </span>
+            </header>
+            <div className="body stack" style={{ gap: 10 }}>
+              <p className="small muted">
+                The data said {plural(data, 'day')}
+                {diff !== 0 && (
+                  <b style={{ color: diff > 0 ? 'var(--moss)' : 'var(--terra)' }}>
+                    {' '}
+                    · you’ve {diff > 0 ? 'added' : 'taken off'} {Math.abs(diff)}
+                  </b>
+                )}
+              </p>
+              <input
+                type="range"
+                className="slider"
+                id={`days-${id}`}
+                aria-label={`Days for ${pl.name}`}
+                min={0}
+                max={Math.max(365, v)}
+                step={1}
+                value={v}
+                onChange={(e) => set(id, Number(e.target.value))}
+              />
+              <div className="stepper">
+                <button className="btn" onClick={() => set(id, v - 10)} aria-label="Take off 10 days">
+                  −10
+                </button>
+                <button className="btn" onClick={() => set(id, v - 1)} aria-label="Take off 1 day">
+                  −1
+                </button>
+                <button className="btn" onClick={() => set(id, v + 1)} aria-label="Add 1 day">
+                  +1
+                </button>
+                <button className="btn" onClick={() => set(id, v + 10)} aria-label="Add 10 days">
+                  +10
+                </button>
+              </div>
+            </div>
+          </article>
+        );
+      })}
+      {tied && <p className="small" style={{ color: 'var(--terra)', fontWeight: 700 }}>Two players are tied for the most days. Only one can last longest, so nudge one of them.</p>}
+      <button className="btn primary big block" aria-disabled={tied} onClick={() => !tied && act({ a: 'verdict', days })}>
+        Lock in and reveal
       </button>
-      {order.length > 0 && (
-        <button className="btn ghost" onClick={() => setOrder([])}>
-          Start again
-        </button>
-      )}
     </div>
   );
 }
 
-/* ------------------------------------------------------------------------------- the day counter */
+/* ------------------------------------------------------------------------------- the reveal, one by one */
 function Reveal(p: Ctx) {
   const { g, r, now } = useCtx(p);
-  const ranking = r.ranking ?? [];
-  const drop = r.drop ?? {};
-  const order = [...ranking].reverse(); // first out ... survivor last
+  const order = r.revealOrder ?? [];
+  const verdict = r.verdict ?? {};
   const e = now - r.revealAt;
-  const keyAt = (i: number) => TIMING.revealLeadMs + (i + 1) * TIMING.revealStepMs;
-  let day = 0;
-  for (let i = 0; i < order.length; i++) {
-    const t0 = i === 0 ? TIMING.revealLeadMs : keyAt(i - 1);
-    const d0 = i === 0 ? 0 : drop[order[i - 1]];
-    const t1 = keyAt(i);
-    if (e >= t1) {
-      day = drop[order[i]];
-      continue;
-    }
-    if (e > t0) day = Math.round(d0 + ((drop[order[i]] - d0) * (e - t0)) / (t1 - t0));
-    break;
-  }
-  const crowned = e >= keyAt(order.length - 1);
-  const winner = ranking[0];
+  const startOf = (i: number) => TIMING.revealLeadMs + i * TIMING.revealStepMs;
+  let current = -1;
+  order.forEach((_, i) => {
+    if (e >= startOf(i)) current = i;
+  });
+  const named = (i: number) => e >= startOf(i) + TIMING.revealNameMs;
+  const last = order.length - 1;
 
+  if (current < 0) {
+    return (
+      <div className="gauge-hero">
+        <Sun className="rise" />
+        <Heading>The verdict.</Heading>
+      </div>
+    );
+  }
+
+  const id = order[current];
+  const pl = g.players.find((x) => x.id === id)!;
+  const isWinner = current === last;
   return (
     <div className="stack">
-      <div className="counter">
-        <p className="label">{crowned ? 'Still standing on' : 'Surviving'}</p>
-        <div className="day">DAY {day}</div>
-      </div>
-      {crowned && (
-        <div style={{ textAlign: 'center' }}>
-          <div className="stamp small" style={{ color: 'var(--terra)' }}>
-            Secret Survivalist
+      <div className="verdict-card rise" key={id}>
+        <p className="label">{isWinner ? 'And the Secret Survivalist, lasting' : 'Surviving'}</p>
+        <div className="display big-days">{plural(verdict[id], 'day')}</div>
+        <p className="label">is…</p>
+        {named(current) ? (
+          <div className="stack rise" style={{ alignItems: 'center', gap: 12 }}>
+            <p className="display" style={{ fontSize: 'clamp(44px, 13vw, 76px)' }}>
+              {pl.name}
+            </p>
+            {isWinner && (
+              <div className="stamp small" style={{ color: 'var(--terra)' }}>
+                Secret Survivalist
+              </div>
+            )}
+            <p className="small muted">The data said {plural(r.days?.[id] ?? 0, 'day')}.</p>
           </div>
-          <p className="display" style={{ fontSize: 44, marginTop: 14 }}>
-            {nameOf(g.players, winner)}
+        ) : (
+          <p className="display" style={{ fontSize: 'clamp(44px, 13vw, 76px)', opacity: 0.25 }}>
+            ? ? ?
           </p>
+        )}
+      </div>
+      {current > 0 && (
+        <div className="stack" style={{ gap: 8 }}>
+          {order
+            .slice(0, current)
+            .reverse()
+            .map((pid) => {
+              const pp = g.players.find((x) => x.id === pid)!;
+              return (
+                <div key={pid} className="fate">
+                  <Dot colour={pp.colour} />
+                  <span className="nm">{pp.name}</span>
+                  <span className="small" style={{ fontWeight: 700 }}>
+                    {plural(verdict[pid], 'day')}
+                  </span>
+                </div>
+              );
+            })}
         </div>
       )}
-      <div className="stack" style={{ gap: 8 }}>
-        {order.map((id, i) => {
-          const pl = g.players.find((x) => x.id === id)!;
-          const gone = i < order.length - 1 && e >= keyAt(i);
-          const won = id === winner && crowned;
-          return (
-            <div key={id} className={`fate ${gone ? 'gone' : ''} ${won ? 'won' : ''}`}>
-              <Dot colour={pl.colour} />
-              <span className="nm">{pl.name}</span>
-              <span className="small" style={{ fontWeight: 700 }}>
-                {gone ? `Gone by day ${drop[id]}` : won ? `Day ${drop[id]}` : 'Hanging on'}
-              </span>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -465,20 +635,37 @@ function RoundEnd(p: Ctx) {
   const { g, r, canRun, act } = useCtx(p);
   const last = g.results[g.results.length - 1];
   const nextAdj = g.rota[r.number] ?? null;
+  const order = [...(r.revealOrder ?? [])].reverse();
   return (
     <div className="stack">
-      <p className="label">Round {r.number} · {last?.location}</p>
+      <p className="label">
+        Round {r.number} · {last?.location}
+      </p>
       <Heading>{nameOf(g.players, r.winnerId)} is the Secret Survivalist.</Heading>
       {nextAdj && <p className="muted">They start the next round with a bonus gold bar.</p>}
+      <section className="stack" style={{ gap: 8 }}>
+        <p className="label">The data said · the Adjudicator said</p>
+        <div className="people">
+          {order.map((id) => {
+            const pl = g.players.find((x) => x.id === id)!;
+            return (
+              <div className="person" key={id}>
+                <Dot colour={pl.colour} />
+                <span className="nm">{pl.name}</span>
+                <span className="small muted">{r.days?.[id]}</span>
+                <span className="gold">{r.verdict?.[id]} days</span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
       <Standings players={g.players} />
       {canRun ? (
         <button className="btn primary big block" onClick={() => act({ a: 'nextRound' })}>
           {nextAdj ? `Next round: ${nameOf(g.players, nextAdj)} adjudicates` : 'Crown the Last One Standing'}
         </button>
       ) : (
-        <p className="label" style={{ textAlign: 'center' }}>
-          {nextAdj ? `${nameOf(g.players, nextAdj)} adjudicates next` : 'One last reveal…'}
-        </p>
+        <How>{nextAdj ? `Wait for the next round. ${nameOf(g.players, nextAdj)} adjudicates.` : 'One last reveal coming…'}</How>
       )}
     </div>
   );
@@ -517,7 +704,7 @@ function Final(p: Ctx) {
       </div>
       <Heading size={64}>{champs.map((c) => c.name).join(' and ')}</Heading>
       <p className="muted">
-        {best} {best === 1 ? 'round' : 'rounds'} survived{champs.length > 1 ? ' each. A shared raft.' : '.'}
+        {plural(best, 'round')} won{champs.length > 1 ? ' each. A shared raft.' : '.'}
       </p>
       <Standings players={g.players} />
       <section className="stack" style={{ gap: 8 }}>
@@ -532,10 +719,12 @@ function Final(p: Ctx) {
           ))}
         </div>
       </section>
-      {view.you.isHost && (
+      {view.you.isHost ? (
         <button className="btn primary big block" onClick={() => act({ a: 'backToLobby' })}>
           Play again
         </button>
+      ) : (
+        <How>Want another go? The host can tap Play again.</How>
       )}
     </div>
   );

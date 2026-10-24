@@ -21,10 +21,11 @@ export const TIMING = {
   openMs: 14000, // time for a first bid before the card is binned
   bidMs: 7000, // each new bid resets the clock to at least this
   settledMs: 2200, // nobody else can top it: sold quickly
-  terrainMs: 4500, // how long the terrain reveal fills the screen
-  revealLeadMs: 1500, // pause before the day counter starts
-  revealStepMs: 2600, // time between each survivor dropping out
-  revealTailMs: 3500, // after the last one standing is crowned
+  passedMs: 700, // everyone else passed: sold (or binned) almost at once
+  revealLeadMs: 1200, // pause before the first verdict card
+  revealStepMs: 4200, // each player's verdict: the days, a beat, then the name
+  revealNameMs: 1600, // within a step: when the name lands after the days
+  revealTailMs: 3000, // after the Secret Survivalist is crowned
   debunkMs: 4200, // the DEBUNKED stamp stays on screen this long
   hostAwayMs: 20000,
 };
@@ -66,13 +67,26 @@ export function cardScore(card: Card, loc: Location) {
   return { body: clamp(body), mind: clamp(mind), supply: clamp(supply) };
 }
 
-/** What the data suggests: how many days this kit keeps you alive. Kept off every screen until the odds phase. */
-export function survivalDays(kitIds: string[], loc: Location): number {
+export interface Breakdown {
+  body: number; // Health
+  mind: number; // Morale
+  supply: number; // Supplies
+}
+
+/** Each bag's three totals, out of BREAKDOWN_MAX each, after the place has had its say. */
+export const BREAKDOWN_MAX = 30;
+export function breakdown(kitIds: string[], loc: Location): Breakdown {
   let body = 0, mind = 0, supply = 0;
   for (const id of kitIds) {
     const s = cardScore(cardById(id), loc);
     body += s.body; mind += s.mind; supply += s.supply;
   }
+  return { body, mind, supply };
+}
+
+/** What the data suggests: how many days this kit keeps you alive. */
+export function survivalDays(kitIds: string[], loc: Location): number {
+  const { body, mind, supply } = breakdown(kitIds, loc);
   // Across five random cards the weighted score runs from about 34 to 78 (median 55).
   const score = body * 1.25 + mind * 1.0 + supply * 1.45;
   // A kit with one gaping hole (no food, no morale) doesn't last.
@@ -81,6 +95,9 @@ export function survivalDays(kitIds: string[], loc: Location): number {
   const x = Math.max(0, Math.min(1.1, (score - 34) / 46));
   return Math.max(2, Math.round((3 + Math.pow(x, 1.8) * 300) * penalty));
 }
+
+/** The longest anyone can be judged to last. */
+export const MAX_VERDICT_DAYS = 999;
 
 /** Cards not yet seen this game, for categories at least one bidder still needs. */
 export function pickCard(needed: Category[], used: Set<string>, rng: () => number = Math.random): Card | null {
@@ -106,22 +123,5 @@ export function shuffle<T>(arr: T[], rng: () => number = Math.random): T[] {
   return a;
 }
 
-/**
- * The verdict reveal. The Adjudicator ranks the survivors (first = last one standing).
- * The days on the counter come from the data, handed out in the Adjudicator's order:
- * the first out gets the smallest number, the survivor the biggest.
- */
-export function dropDays(ranking: string[], days: Record<string, number>): Record<string, number> {
-  const values = ranking.map((id) => days[id] ?? 1).sort((a, b) => a - b);
-  const out: Record<string, number> = {};
-  const losersFirst = [...ranking].reverse();
-  let last = 0;
-  losersFirst.forEach((id, i) => {
-    const d = Math.max(values[i], last + 1);
-    out[id] = d;
-    last = d;
-  });
-  return out;
-}
-
+/** The verdict reveal: one player at a time, shortest survival first. */
 export const revealDurationMs = (n: number) => TIMING.revealLeadMs + n * TIMING.revealStepMs + TIMING.revealTailMs;

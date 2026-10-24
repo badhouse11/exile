@@ -145,6 +145,17 @@ function Lobby({ room, view }: { room: RoomApi; view: View }) {
   const ready = view.lobby.length >= RULES.minPlayers;
   return (
     <div className="stack">
+      <h1 className="display" style={{ fontSize: 46 }}>
+        Departure lounge
+      </h1>
+      <div className="how">
+        <span className="label">What to do</span>
+        <p>
+          {view.you.isHost
+            ? `Tap Invite friends and send the link to everyone playing. When at least ${RULES.minPlayers} people are in, tap Take off.`
+            : 'You’re in. Wait here until the host taps Take off.'}
+        </p>
+      </div>
       <Invite code={view.code} />
       <Passengers view={view} canKick={view.you.isHost} onKick={(id) => room.act({ a: 'kick', playerId: id })} />
       <button className="btn ghost" onClick={() => setEditing(true)}>
@@ -213,6 +224,10 @@ function JoinForm({ room, view, current, onDone }: { room: RoomApi; view: View; 
       <h1 className="display" style={{ fontSize: 52 }}>
         Who’s fleeing?
       </h1>
+      <div className="how">
+        <span className="label">What to do</span>
+        <p>{current ? 'Change your name or colour, then tap Save.' : 'Type your name and pick a colour. Then tap Board the jet.'}</p>
+      </div>
       {!current && <Invite code={view.code} compact />}
       <label className="label" htmlFor="name">
         Your name
@@ -293,7 +308,6 @@ function GameShell({ room, view }: { room: RoomApi; view: View }) {
 
   const r = g.round;
   const showGauge = g.phase !== 'briefing' && g.phase !== 'final';
-  const terrainFresh = r.terrain && now - r.terrainAt < TIMING.terrainMs && g.phase === 'deal';
   const ev = view.event;
   const debunk = ev?.tone === 'debunk' && now - ev.at < TIMING.debunkMs ? ev : null;
 
@@ -301,18 +315,6 @@ function GameShell({ room, view }: { room: RoomApi; view: View }) {
     <>
       {showGauge && <Gauge temp={r.temp} terrain={r.terrain} />}
       <Phase view={view} room={room} now={now} />
-      {terrainFresh && (
-        <div className="overlay ink" role="alert">
-          <div style={{ textAlign: 'center' }} className="stack">
-            <p className="label" style={{ color: 'var(--miel)' }}>
-              The jet’s coming down. It’s the
-            </p>
-            <div className="stamp" style={{ color: 'var(--miel)', fontSize: 'clamp(44px, 13vw, 96px)' }}>
-              {r.terrain}
-            </div>
-          </div>
-        </div>
-      )}
       {debunk && (
         <div className="overlay" role="alert">
           <div style={{ textAlign: 'center' }} className="stack">
