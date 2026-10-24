@@ -82,33 +82,11 @@ function playGame(n: number, seed: number) {
     assert.equal(view.game!.round.days, null, 'days hidden during the deal');
 
     let guard = 0;
-    const seenOrder: string[] = [];
     while (g.phase === 'deal') {
       if (++guard > 2000) throw new Error('deal never finished');
-      const lp = core.state.lastPick;
-      if (lp) {
-        // The last player needing a category picks one of three (or the clock picks for them).
-        const cat = lp.options[0].split('-')[0];
-        if (seenOrder[seenOrder.length - 1] !== cat) seenOrder.push(cat);
-        assert.equal(Object.values(r.players).filter((x) => !x.kit[cat as keyof typeof x.kit]).length, 1, 'last pick only for the last one');
-        const goldBefore = r.players[lp.playerId].gold;
-        if (rng() < 0.7) {
-          const other = metas.findIndex((mm) => mm.playerId && mm.playerId !== lp.playerId);
-          assert.equal(send(other, { t: 'act', action: { a: 'pick', cardId: lp.options[0] } }).reply?.t, 'error', 'not their pick');
-          send(idx(lp.playerId), { t: 'act', action: { a: 'pick', cardId: lp.options[lp.options.length - 1] } });
-        } else advance(31000);
-        assert.equal(core.state.lastPick, null);
-        assert.equal(r.players[lp.playerId].gold, goldBefore - RULES.lastPickCost, 'last pick costs one bar');
-        advance(3000);
-        continue;
-      }
       if (!core.state.auction) {
         advance(500);
         continue;
-      }
-      {
-        const cat = core.state.auction.cardId.split('-')[0];
-        if (seenOrder[seenOrder.length - 1] !== cat) seenOrder.push(cat);
       }
       const a = core.state.auction;
       const cat = CARDS[a.cardId.split('-')[0] as keyof typeof CARDS] ? (a.cardId.split('-')[0] as keyof typeof CARDS) : 'PARTNER';
@@ -146,7 +124,6 @@ function playGame(n: number, seed: number) {
     }
     assert.equal(g.phase, 'landing');
     assert.equal(new Set(g.usedCards).size, g.usedCards.length, 'no repeats within a round');
-    assert.deepEqual(seenOrder, CATEGORIES, 'categories dealt in order, one at a time');
     // Legends are rare: at most one per category per round.
     const roundCards = g.usedCards.slice(usedBefore);
     for (const c of CATEGORIES) assert.ok(roundCards.filter((id) => id.startsWith(c + '-') && cardById(id).legendary).length <= 1, `one ${c} legend at most`);

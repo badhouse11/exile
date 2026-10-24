@@ -11,7 +11,6 @@ export const RULES = {
   goldPerRound: 20, // a fresh stack every round; leftovers are lost
   winnerBonusGold: 1, // the last Secret Survivalist starts the next round with one extra bar
   minBid: 1,
-  lastPickCost: 1, // the last player still needing a category picks from three leftovers for this
   pitchSeconds: 120,
 };
 
@@ -23,7 +22,6 @@ export const TIMING = {
   bidMs: 7000, // each new bid resets the clock to at least this
   settledMs: 2200, // nobody else can top it: sold quickly
   passedMs: 700, // everyone else passed: sold (or binned) almost at once
-  lastPickMs: 30000, // time to choose a last pick before one is chosen for you
   debunkMs: 4200, // the DEBUNKED stamp stays on screen this long
   hostAwayMs: 20000,
 };

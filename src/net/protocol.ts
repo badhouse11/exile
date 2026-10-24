@@ -30,13 +30,6 @@ export interface Auction {
   passed: string[]; // players who've said no to this one
 }
 
-/** The last player still needing a category chooses from three leftovers. */
-export interface LastPick {
-  playerId: string;
-  options: string[];
-  endsAt: number;
-}
-
 export interface Clock {
   remainingMs: number;
   runningSince: number | null;
@@ -111,7 +104,6 @@ export interface View {
   online: string[];
   game: GameView | null;
   auction: Auction | null;
-  lastPick: LastPick | null;
   clock: Clock;
   event: RoomEvent | null;
 }
@@ -123,7 +115,6 @@ export type Action =
   | { a: 'takeOff' }
   | { a: 'bid'; amount: number }
   | { a: 'pass' }
-  | { a: 'pick'; cardId: string }
   | { a: 'seeData' }
   | { a: 'nextData' }
   | { a: 'toPitches' }

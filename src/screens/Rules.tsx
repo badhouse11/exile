@@ -30,13 +30,13 @@ export default function Rules({ onBack }: { onBack: () => void }) {
       <h2>Each round</h2>
       <ol>
         <li>
-          <b>The Adjudicator.</b> One player judges the round instead of playing it. Everyone takes a turn, once each.
+          <b>The Adjudicator.</b> Each round, one player is the Adjudicator. They don’t pack a bag: they run the round, watch what everyone grabs, time the pitches and decide who survives longest. Everyone takes a turn, once each.
         </li>
         <li>
           <b>Take off.</b> The temperature gauge shows FREEZING, MILD or SCORCHING. Where exactly you’re going stays secret until everyone’s packed.
         </li>
         <li>
-          <b>The deal.</b> Items come up one category at a time, in this order:
+          <b>The deal.</b> Items come up one at a time, in a random order. Your bag has five slots:
           <div className="legend-cats" style={{ marginTop: 8 }}>
             {CATEGORIES.map((c) => (
               <span key={c} className={`cat-${c}`}>
@@ -48,7 +48,7 @@ export default function Rules({ onBack }: { onBack: () => void }) {
           empty slot. Leftover gold doesn’t carry over, so spend it.
         </li>
         <li>
-          <b>Bidding.</b> Tap a bid to offer gold bars, or tap <b>Pass</b> if you don’t want it. When everyone else has passed, the top bid wins straight away. The last player still without one gets <b>last pick</b>: three to choose from, for a single gold bar.
+          <b>Bidding.</b> Tap a bid to offer gold bars, or tap <b>Pass</b> if you don’t want it. When everyone else has passed, the top bid wins straight away.
         </li>
         <li>
           <b>Touchdown.</b> Once every bag is full, you find out where you’ve landed. Fishing rod? Lovely. You’re in a swamp.

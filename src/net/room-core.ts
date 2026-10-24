@@ -28,7 +28,6 @@ import type {
   Auction,
   ClientMsg,
   Clock,
-  LastPick,
   LobbyPlayer,
   Phase,
   Player,
@@ -91,7 +90,6 @@ export interface RoomState {
   lobby: LobbyPlayer[];
   game: Game | null;
   auction: Auction | null;
-  lastPick?: LastPick | null;
   clock: Clock;
   lastSeen: Record<string, number>;
   event: RoomEvent | null;
@@ -118,7 +116,6 @@ export function newRoom(code: string, now: number): RoomState {
     lobby: [],
     game: null,
     auction: null,
-    lastPick: null,
     clock: { remainingMs: PITCH_MS, runningSince: null },
     lastSeen: {},
     event: null,
@@ -427,7 +424,6 @@ export class RoomCore {
         if (!rp) throw new Denied('That player isn’t in this round.');
         if (this.online.has(action.playerId)) throw new Denied('They’re still here. Let them bid.');
         if (this.state.auction?.high?.playerId === action.playerId) throw new Denied('Wait for this card to sell first.');
-        if (this.state.lastPick?.playerId === action.playerId) this.state.lastPick = null;
         const used = new Set(g.usedCards);
         if (this.state.auction) used.add(this.state.auction.cardId);
         for (const cat of CATEGORIES) {
@@ -448,15 +444,6 @@ export class RoomCore {
         this.pass(m);
         break;
 
-      case 'pick': {
-        this.requirePhase('deal');
-        const lp = this.state.lastPick;
-        if (!lp) throw new Denied('There’s nothing to pick.');
-        if (m.playerId !== lp.playerId) throw new Denied('It’s not your pick.');
-        if (!lp.options.includes(action.cardId)) throw new Denied('Pick one of the three.');
-        this.settleLastPick(action.cardId);
-        break;
-      }
 
       case 'seeData':
         this.requireRunner(m);
@@ -559,7 +546,6 @@ export class RoomCore {
         this.requireRunner(m);
         this.requirePhase('roundEnd');
         this.state.auction = null;
-        this.state.lastPick = null;
         this.state.clock = { remainingMs: PITCH_MS, runningSince: null };
         if (g.roundIndex + 1 >= g.rota.length) {
           g.phase = 'final';
@@ -630,62 +616,22 @@ export class RoomCore {
       .map(([id]) => id);
   }
 
-  /** Categories go in order: every partner first, then tools, food, animals and fun. */
+  /** Deal one card from a random category that someone still needs. */
   private deal() {
     const g = this.g;
     const r = g.round;
     r.nextDealAt = null;
-    const cat = CATEGORIES.find((c) => this.eligible(c).length > 0);
-    if (!cat) return;
+    const needed = CATEGORIES.filter((c) => this.eligible(c).length > 0);
+    if (!needed.length) return;
+    r.legendCats = r.legendCats ?? [];
     const used = new Set(g.usedCards);
     const seen = new Set([...(g.seenCards ?? []), ...g.usedCards]);
     // Fresh cards first; once the deck's been through, anything not yet dealt this round.
-    const draw = (noLeg: Category[]) => pickCard([cat], seen, this.rng, noLeg) ?? pickCard([cat], used, this.rng, noLeg);
-    const take = (id: string) => {
-      used.add(id);
-      seen.add(id);
-      g.usedCards.push(id);
-    };
-    const needing = this.eligible(cat);
-    r.legendCats = r.legendCats ?? [];
-    const noLegends = r.legendCats;
-    const dealt = (id: string) => {
-      if (cardById(id).legendary && !noLegends.includes(cat)) noLegends.push(cat);
-    };
-    // One player left needing this: no auction, they choose from three for one gold bar.
-    if (needing.length === 1 && Object.keys(r.players).length > 1) {
-      const options: string[] = [];
-      for (let i = 0; i < 3; i++) {
-        const card = draw(noLegends);
-        if (!card) break;
-        take(card.id);
-        options.push(card.id);
-        dealt(card.id);
-      }
-      if (options.length) {
-        this.state.lastPick = { playerId: needing[0], options, endsAt: this.now + TIMING.lastPickMs };
-        return;
-      }
-    }
-    const card = draw(noLegends);
+    const card = pickCard(needed, seen, this.rng, r.legendCats) ?? pickCard(needed, used, this.rng, r.legendCats);
     if (!card) return;
-    take(card.id);
-    dealt(card.id);
+    g.usedCards.push(card.id);
+    if (card.legendary && !r.legendCats.includes(card.category)) r.legendCats.push(card.category);
     this.state.auction = { cardId: card.id, high: null, endsAt: this.now + TIMING.openMs, bids: 0, passed: [] };
-  }
-
-  private settleLastPick(cardId: string) {
-    const lp = this.state.lastPick;
-    if (!lp) return;
-    const rp = this.g.round.players[lp.playerId];
-    const card = cardById(cardId);
-    this.state.lastPick = null;
-    if (rp && !rp.kit[card.category]) {
-      rp.kit[card.category] = card.id;
-      rp.gold = Math.max(0, rp.gold - RULES.lastPickCost);
-      this.say(`Last pick: ${this.name(lp.playerId)} takes ${card.name}.`, 'sold', { by: lp.playerId });
-    }
-    this.afterSale();
   }
 
   private resolveAuction() {
@@ -730,7 +676,7 @@ export class RoomCore {
       this.say(`Touchdown. It’s the ${loc.name}.`, 'terrain');
       return;
     }
-    if (!this.state.auction && !this.state.lastPick) r.nextDealAt = this.now + TIMING.betweenCardsMs;
+    if (!this.state.auction) r.nextDealAt = this.now + TIMING.betweenCardsMs;
   }
 
   private backToLobby() {
@@ -753,7 +699,6 @@ export class RoomCore {
   nextAlarm(): number | null {
     const times: number[] = [];
     if (this.state.auction) times.push(this.state.auction.endsAt);
-    if (this.state.lastPick) times.push(this.state.lastPick.endsAt);
     const g = this.state.game;
     if (g?.phase === 'deal' && g.round.nextDealAt) times.push(g.round.nextDealAt);
     if (g?.phase === 'reveal') times.push(g.round.revealAt + revealDurationMs(Object.keys(g.round.players).length));
@@ -769,11 +714,7 @@ export class RoomCore {
       this.resolveAuction();
       changed = true;
     }
-    if (g.phase === 'deal' && this.state.lastPick && now >= this.state.lastPick.endsAt - 20) {
-      this.settleLastPick(this.state.lastPick.options[0]);
-      changed = true;
-    }
-    if (g.phase === 'deal' && !this.state.auction && !this.state.lastPick && g.round.nextDealAt && now >= g.round.nextDealAt - 20) {
+    if (g.phase === 'deal' && !this.state.auction && g.round.nextDealAt && now >= g.round.nextDealAt - 20) {
       this.deal();
       changed = true;
     }
@@ -842,7 +783,6 @@ export class RoomCore {
       online: [...online],
       game,
       auction: s.auction,
-      lastPick: s.lastPick ?? null,
       clock: s.clock,
       event: s.event,
     };

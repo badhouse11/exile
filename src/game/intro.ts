@@ -41,8 +41,11 @@ export const INTRO: IntroBeat[] = [
   {
     glyph: 'chair',
     lines: [
-      { text: 'Each round, one of you stays behind.' },
-      { text: 'They’re the Adjudicator. Once you land, pitch them why you’ll last the longest. They decide who survives.', small: true },
+      { text: 'Each round, one of you is the Adjudicator.' },
+      {
+        text: 'You’ll all take a turn. The Adjudicator doesn’t pack a bag. They run the round, watch what everyone grabs, hear your pitches, then decide who survives the longest.',
+        small: true,
+      },
     ],
   },
   { glyph: 'plane', lines: [{ text: 'Fasten your seatbelts.' }, { text: 'Wheels up.' }] },

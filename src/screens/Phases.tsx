@@ -6,8 +6,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { CardFace, Dot, Kit, Ticks, nameOf, tempColour } from '../components/Bits';
 import { GoldGlyph, PlaneGlyph, Sun, ThermoGlyph } from '../components/Icons';
-import { CATEGORIES, CATEGORY_LABELS, cardById } from '../data/cards';
-import type { Category } from '../data/cards';
+import { CATEGORIES, cardById } from '../data/cards';
 import { BREAKDOWN_MAX, MAX_VERDICT_DAYS, RULES, TIMING, maxBid, revealTimeline } from '../game/rules';
 import type { GameView, Player, View } from '../net/protocol';
 import type { Room } from '../net/useRoom';
@@ -85,13 +84,19 @@ function Briefing(p: Ctx) {
       {isAdj ? (
         <>
           <Heading>You’re the Adjudicator.</Heading>
-          <p>You don’t pack a bag this round. You watch what everyone grabs, hear their pitches, then decide how long each of them really lasts.</p>
+          <p>
+            Everyone takes a turn at this, and this round it’s you. You don’t pack a bag. You run the round: you take off, watch what everyone grabs,
+            reveal the data, time the pitches, then decide how long each player really lasts.
+          </p>
           <How>When everyone’s ready, tap Take off.</How>
         </>
       ) : (
         <>
           <Heading>{adjName} is the Adjudicator.</Heading>
-          <p>You’re about to be flown out. You can take five things: a partner, a survival tool, food, an animal and something for fun.</p>
+          <p>
+            {adjName} runs this round and judges who lasts longest. You’re being flown out with five things: a partner, a survival tool, food, an
+            animal and something for fun. Everyone gets a turn as Adjudicator.
+          </p>
           {myGold ? (
             <div className="panel dark">
               <p className="label">Your gold this round</p>
@@ -140,16 +145,12 @@ function Deal(p: Ctx) {
   return (
     <div className="stack">
       {rp ? (
-        <How>Items come one category at a time. Bid gold bars on what you want, or tap Pass. Once you’ve got one, you sit that category out.</How>
+        <How>Items come up in a random order. Bid gold bars on what you want, or tap Pass. You need one of each, and once a slot’s filled, you sit that category out.</How>
       ) : isAdj ? (
         <How>You’re judging this round. Watch what everyone packs. You’ll hear why it matters soon.</How>
       ) : null}
 
-      <Progress current={a ? cardById(a.cardId).category : view.lastPick ? cardById(view.lastPick.options[0]).category : null} />
-
-      {view.lastPick ? (
-        <LastPickPanel ctx={p} />
-      ) : a ? (
+      {a ? (
         <Lot ctx={p} />
       ) : (
         <div className="card-back">
@@ -184,54 +185,6 @@ function Deal(p: Ctx) {
 
       <Players view={view} showGold />
     </div>
-  );
-}
-
-/** Where the deal has got to: the five categories, in order. */
-function Progress({ current }: { current: Category | null }) {
-  const at = current ? CATEGORIES.indexOf(current) : -1;
-  return (
-    <div className="progress" aria-label={current ? `Now dealing: ${CATEGORY_LABELS[current]}` : 'Dealing'}>
-      {CATEGORIES.map((c, i) => (
-        <span key={c} className={`step ${i === at ? `now cat-${c}` : i < at ? 'done' : ''}`}>
-          {c === 'ENJOYMENT' ? 'Fun' : c === 'TOOL' ? 'Tool' : CATEGORY_LABELS[c]}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function LastPickPanel({ ctx }: { ctx: Ctx }) {
-  const { g, me, act, now, view } = useCtx(ctx);
-  const lp = view.lastPick!;
-  const cat = cardById(lp.options[0]).category;
-  const mine = lp.playerId === me;
-  const left = Math.max(0, lp.endsAt - now);
-  const what = cat === 'ENJOYMENT' ? 'something for fun' : cat === 'TOOL' ? 'a survival tool' : `${cat === 'ANIMAL' ? 'an' : 'a'} ${CATEGORY_LABELS[cat].toLowerCase()}`;
-  return (
-    <section className="stack" style={{ gap: 12 }}>
-      <div className="panel dark" style={{ textAlign: 'center' }}>
-        <p className="label">Last pick</p>
-        <p className="display" style={{ fontSize: 34, marginTop: 4 }}>
-          {mine ? 'You’re the last one without ' + what + '.' : `${nameOf(g.players, lp.playerId)} gets last pick.`}
-        </p>
-        <p className="small" style={{ marginTop: 6 }}>
-          {mine ? `Choose one of these three for ${bars(RULES.lastPickCost)}. ${Math.ceil(left / 1000)} seconds, or one gets picked for you.` : 'Everyone else is sorted. They choose one of these three for a single gold bar.'}
-        </p>
-      </div>
-      <div className="stack" style={{ gap: 10 }}>
-        {lp.options.map((id) =>
-          mine ? (
-            <button key={id} className="pick" onClick={() => act({ a: 'pick', cardId: id })}>
-              <CardFace id={id} compact />
-              <span className="btn primary block">Take this</span>
-            </button>
-          ) : (
-            <CardFace key={id} id={id} compact />
-          ),
-        )}
-      </div>
-    </section>
   );
 }
 
