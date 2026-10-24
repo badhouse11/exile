@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CARDS, CATEGORIES, LOCATIONS } from '../data/cards';
+import { CARDS, CATEGORIES, LOCATIONS, cardById } from '../data/cards';
 import { RoomCore, newRoom } from '../net/room-core';
 import type { Meta } from '../net/room-core';
 import type { ClientMsg } from '../net/protocol';
@@ -59,6 +59,7 @@ function playGame(n: number, seed: number) {
 
   for (let round = 0; round < n; round++) {
     const r = g.round;
+    const usedBefore = 0;
     assert.equal(g.phase, 'briefing');
     const adj = idx(r.adjudicatorId);
     // Someone else can't take off.
@@ -134,7 +135,11 @@ function playGame(n: number, seed: number) {
       for (const rp of Object.values(r.players)) assert.ok(rp.gold >= 0);
     }
     assert.equal(g.phase, 'landing');
+    assert.equal(new Set(g.usedCards).size, g.usedCards.length, 'no repeats within a round');
     assert.deepEqual(seenOrder, CATEGORIES, 'categories dealt in order, one at a time');
+    // Legends are rare: at most one per category per round.
+    const roundCards = g.usedCards.slice(usedBefore);
+    for (const c of CATEGORIES) assert.ok(roundCards.filter((id) => id.startsWith(c + '-') && cardById(id).legendary).length <= 1, `one ${c} legend at most`);
     assert.ok(r.terrainRevealed);
     send(adj, { t: 'act', action: { a: 'seeData' } });
     assert.equal(g.phase, 'odds');
@@ -196,7 +201,7 @@ function playGame(n: number, seed: number) {
   assert.equal(g.players.reduce((s, p) => s + p.wins, 0), n, 'one Secret Survivalist per round');
   // Every Adjudicator served once.
   assert.deepEqual([...g.results.map((x) => x.adjudicatorId)].sort(), [...g.rota].sort());
-  // No card dealt twice.
+  // No card dealt twice in a round (checked on the last round's deal).
   assert.equal(new Set(g.usedCards).size, g.usedCards.length);
   // Play again.
   send(0, { t: 'act', action: { a: 'backToLobby' } });

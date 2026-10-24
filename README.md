@@ -33,17 +33,19 @@ Netlify is optional. To host the site there instead, import the repo (settings c
 
 ## Editing the cards
 
-All 500 cards and the 13 places live in `src/data/cards.ts`. Each card is one line:
+All 250 cards (50 per category) and the 13 places live in `src/data/cards.ts`. Each card is one line:
 
 ```
 Name|BODY|MIND|SUPPLY|tags|kind|note|battery
-Bear Grylls|5|2|5|ch|Survivalist|Ex-SAS. Will drink anything
-Jaws|1|4|1|w|Film|DVD player|3
+Bear Grylls|5|2|5|ch|Survivalist|Will get you out alive. Will make you drink something first.
+Jaws|1|4|1|w|Film|An all-time classic. You'll never swim again.|3
 ```
 
 - **BODY, MIND, SUPPLY** (1 to 5) are the hidden scores: health and safety, morale, and how long it keeps you going. Players never see them.
-- **tags:** `c` good in the cold, `h` good in the heat, `w` good near water, `p` spoils in the heat, `d` back from the dead.
-- **kind** is the small label (Survivalist, Grow, Film…), **note** is the subheading under the name, **battery** is days of power or `solar`.
+- **tags:** `c` good in the cold, `h` good in the heat, `w` good near water, `p` spoils in the heat, `l` legendary, `d` back from the dead (a legendary partner). Legends are rare: at most one per category per round.
+- **kind** is the small label (Survivalist, Grow, Film…), **note** is the card's line (the upside, then the catch), **battery** is days of power or `solar`.
+
+The deck reshuffles every round, so big games never run out; cards from earlier rounds only come back once the fresh ones are used up.
 
 Add, remove or reword lines freely.
 

@@ -98,11 +98,12 @@ export function survivalDays(kitIds: string[], loc: Location): number {
 export const MAX_VERDICT_DAYS = 999;
 
 /** Cards not yet seen this game, for categories at least one bidder still needs. */
-export function pickCard(needed: Category[], used: Set<string>, rng: () => number = Math.random): Card | null {
-  const open = needed.filter((c) => CARDS[c].some((card) => !used.has(card.id)));
+export function pickCard(needed: Category[], used: Set<string>, rng: () => number = Math.random, noLegends: Category[] = []): Card | null {
+  const ok = (card: Card) => !used.has(card.id) && !(card.legendary && noLegends.includes(card.category));
+  const open = needed.filter((c) => CARDS[c].some(ok));
   if (!open.length) return null;
   const cat = open[Math.floor(rng() * open.length)];
-  const pool = CARDS[cat].filter((card) => !used.has(card.id));
+  const pool = CARDS[cat].filter(ok);
   return pool[Math.floor(rng() * pool.length)];
 }
 

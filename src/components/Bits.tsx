@@ -18,21 +18,22 @@ export const BatteryBadge = ({ battery }: { battery: string }) =>
 
 export function CardFace({ id, compact = false }: { id: string; compact?: boolean }) {
   const c = cardById(id);
-  const label = c.dead ? 'Back from the dead' : c.kind && c.category !== 'FOOD' && c.category !== 'ENJOYMENT' ? `${CATEGORY_LABELS[c.category]} · ${c.kind}` : CATEGORY_LABELS[c.category];
-  const sub = c.category === 'ENJOYMENT' && c.kind === 'Film' ? 'Film on DVD' : c.category === 'ENJOYMENT' || c.category === 'FOOD' ? c.kind : '';
+  const cat = CATEGORY_LABELS[c.category];
+  const label = c.dead ? 'Back from the dead' : c.legendary ? `Legendary ${cat.toLowerCase()}` : c.category === 'PARTNER' ? `${cat} · ${c.kind}` : cat;
+  const sub = c.dead ? '' : c.kind === 'Film' ? 'Film on DVD' : c.legendary ? '' : c.category === 'PARTNER' ? '' : c.kind;
   return (
-    <article className={`card rise ${c.dead ? 'dead' : ''}`} key={id}>
-      <div className={`band ${c.dead ? '' : `cat-${c.category}`}`}>
+    <article className={`card rise ${c.legendary ? 'legend' : ''}`} key={id}>
+      <div className={`band ${c.legendary ? '' : `cat-${c.category}`}`}>
         <span>{label}</span>
         {sub && <span>{sub}</span>}
       </div>
       {!compact && (
-        <div className={`art ${c.dead ? '' : `ink-${c.category}`}`} style={c.dead ? { color: 'var(--miel)' } : undefined}>
+        <div className={`art ${c.legendary ? '' : `ink-${c.category}`}`} style={c.legendary ? { color: 'var(--miel)' } : undefined}>
           {c.dead ? <HaloGlyph /> : <CategoryGlyph category={c.category} />}
         </div>
       )}
       <div className="name">{c.name}</div>
-      {c.note && c.kind !== 'Film' && <div className="note">{c.note}</div>}
+      {c.note && <div className="note">{c.note}</div>}
       {c.battery && (
         <div className="foot">
           {c.kind === 'Film' ? (
@@ -55,7 +56,7 @@ export function Kit({ kit }: { kit: Record<Category, string | null> }) {
         const id = kit[cat];
         const c = id ? cardById(id) : null;
         return (
-          <div key={cat} className={`slot ${c ? `filled cat-${cat}` : 'empty'}`}>
+          <div key={cat} className={`slot ${c ? `filled ${c.legendary ? 'legend' : `cat-${cat}`}` : 'empty'}`}>
             <span className="label">{cat === 'ENJOYMENT' ? 'Fun' : cat === 'TOOL' ? 'Tool' : CATEGORY_LABELS[cat]}</span>
             <span className="what">{c ? c.name : 'Empty'}</span>
           </div>

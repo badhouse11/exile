@@ -67,6 +67,7 @@ export interface Round {
   revealAt: number;
   winnerId: string | null;
   nextDealAt: number | null;
+  legendCats?: Category[]; // categories that have already had their legend this round
 }
 
 export interface Game {
@@ -76,7 +77,8 @@ export interface Game {
   roundIndex: number;
   round: Round;
   results: RoundResult[];
-  usedCards: string[];
+  usedCards: string[]; // dealt this round
+  seenCards?: string[]; // dealt in earlier rounds: avoided while there are fresh ones
   usedLocations: string[];
 }
 
@@ -538,6 +540,8 @@ export class RoomCore {
           break;
         }
         g.roundIndex += 1;
+        g.seenCards = [...(g.seenCards ?? []), ...g.usedCards];
+        g.usedCards = [];
         const adj = g.rota[g.roundIndex];
         g.round = newRound(g.players, adj, r.winnerId);
         g.phase = 'briefing';
@@ -607,25 +611,39 @@ export class RoomCore {
     const cat = CATEGORIES.find((c) => this.eligible(c).length > 0);
     if (!cat) return;
     const used = new Set(g.usedCards);
+    const seen = new Set([...(g.seenCards ?? []), ...g.usedCards]);
+    // Fresh cards first; once the deck's been through, anything not yet dealt this round.
+    const draw = (noLeg: Category[]) => pickCard([cat], seen, this.rng, noLeg) ?? pickCard([cat], used, this.rng, noLeg);
+    const take = (id: string) => {
+      used.add(id);
+      seen.add(id);
+      g.usedCards.push(id);
+    };
     const needing = this.eligible(cat);
+    r.legendCats = r.legendCats ?? [];
+    const noLegends = r.legendCats;
+    const dealt = (id: string) => {
+      if (cardById(id).legendary && !noLegends.includes(cat)) noLegends.push(cat);
+    };
     // One player left needing this: no auction, they choose from three for one gold bar.
     if (needing.length === 1 && Object.keys(r.players).length > 1) {
       const options: string[] = [];
       for (let i = 0; i < 3; i++) {
-        const card = pickCard([cat], used, this.rng);
+        const card = draw(noLegends);
         if (!card) break;
-        used.add(card.id);
-        g.usedCards.push(card.id);
+        take(card.id);
         options.push(card.id);
+        dealt(card.id);
       }
       if (options.length) {
         this.state.lastPick = { playerId: needing[0], options, endsAt: this.now + TIMING.lastPickMs };
         return;
       }
     }
-    const card = pickCard([cat], used, this.rng);
+    const card = draw(noLegends);
     if (!card) return;
-    g.usedCards.push(card.id);
+    take(card.id);
+    dealt(card.id);
     this.state.auction = { cardId: card.id, high: null, endsAt: this.now + TIMING.openMs, bids: 0, passed: [] };
   }
 

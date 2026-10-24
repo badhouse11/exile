@@ -370,23 +370,28 @@ input.code {
   padding: 0 12px 14px;
 }
 
-.card.dead {
+.card.legend {
   background: var(--espresso);
   color: var(--paper);
   box-shadow: 4px 4px 0 var(--ink);
 }
 
-.card.dead .band {
+.card.legend .band {
   background: var(--ink);
   color: var(--miel);
 }
 
-.card.dead .note {
+.card.legend .note {
   color: var(--miel);
 }
 
-.card.dead .name {
+.card.legend .name {
   font-style: italic;
+  color: var(--miel);
+}
+
+.card.legend .battery {
+  color: var(--miel);
 }
 
 .cat-PARTNER { background: var(--terra); color: var(--paper); }
@@ -1227,4 +1232,15 @@ input.code {
 
 .invite-text .code-big {
   letter-spacing: 0.12em;
+}
+
+/* Legendary cards, in the bag too: espresso with gold. */
+.slot.filled.legend {
+  background: var(--espresso);
+  color: var(--miel);
+  border-color: var(--espresso);
+}
+
+.slot.filled.legend .label {
+  color: var(--miel);
 }
