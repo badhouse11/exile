@@ -5,9 +5,13 @@ import type { Action, ClientMsg, ServerMsg, View } from './protocol';
 /** Forgiving about how the address was pasted: adds https:// if missing, drops any trailing path or slash. */
 function normalise(raw: string): string {
   let v = raw.trim().replace(/^["']|["']$/g, '');
-  // Served by the Cloudflare Worker itself: the rooms live at the same address.
-  if (!v && typeof window !== 'undefined' && window.location.hostname.endsWith('.workers.dev')) return window.location.origin;
-  if (!v) return '';
+  // No address set: the site is served by the room server itself (the workers.dev
+  // address or your own domain), so the rooms live wherever the page came from.
+  // Only the local dev server (port 5173) has no rooms of its own.
+  if (!v) {
+    if (typeof window === 'undefined' || window.location.port === '5173') return '';
+    return window.location.origin;
+  }
   if (v === 'same-origin') return typeof window === 'undefined' ? '' : window.location.origin;
   if (!/^(https?|wss?):\/\//i.test(v)) v = `https://${v}`;
   try {
