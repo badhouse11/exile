@@ -2,7 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Action, ClientMsg, ServerMsg, View } from './protocol';
 
 /** The room server's address, set in Netlify as VITE_ROOM_SERVER. */
-export const ROOM_SERVER: string = (import.meta.env.VITE_ROOM_SERVER ?? '').replace(/\/+$/, '');
+/** Forgiving about how the address was pasted: adds https:// if missing, drops any trailing path or slash. */
+function normalise(raw: string): string {
+  let v = raw.trim().replace(/^["']|["']$/g, '');
+  if (!v) return '';
+  if (!/^(https?|wss?):\/\//i.test(v)) v = `https://${v}`;
+  try {
+    const u = new URL(v);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return v.replace(/\/+$/, '');
+  }
+}
+export const ROOM_SERVER: string = normalise(import.meta.env.VITE_ROOM_SERVER ?? '');
 export const MULTIPLAYER_READY = ROOM_SERVER.length > 0;
 
 const seatKey = (code: string) => `exile.seat.${code}`;
@@ -37,7 +49,7 @@ export interface Room {
   clearError: () => void;
 }
 
-const wsUrl = (code: string) => `${ROOM_SERVER.replace(/^http/, 'ws')}/room/${code}`;
+const wsUrl = (code: string) => `${ROOM_SERVER.replace(/^http/i, 'ws')}/room/${code}`;
 
 export function useRoom(code: string | null, opts: { create?: boolean; onFatal?: (message: string) => void } = {}): Room {
   const [status, setStatus] = useState<Status>('connecting');
